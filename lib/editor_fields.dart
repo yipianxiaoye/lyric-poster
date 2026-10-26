@@ -86,13 +86,14 @@ class LiveTextField extends StatefulWidget {
   final String label, value;
   final String? hint;
   final int maxLines;
-  final ValueChanged<String> onChanged;
+  final bool Function(String) onChanged;
   @override
   State<LiveTextField> createState() => _LiveTextFieldState();
 }
 
 class _LiveTextFieldState extends State<LiveTextField> {
   late final TextEditingController input;
+  String? error;
   @override
   void initState() {
     super.initState();
@@ -104,6 +105,7 @@ class _LiveTextFieldState extends State<LiveTextField> {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.value != widget.value && input.text != widget.value) {
       input.text = widget.value;
+      error = null;
     }
   }
 
@@ -122,7 +124,12 @@ class _LiveTextFieldState extends State<LiveTextField> {
       labelText: widget.label,
       hintText: widget.hint,
       alignLabelWithHint: widget.maxLines > 1,
+      errorText: error,
+      errorMaxLines: 3,
     ),
-    onChanged: widget.onChanged,
+    onChanged: (text) {
+      final accepted = widget.onChanged(text);
+      setState(() => error = accepted ? null : '当前纸张放不下这些文字，请减小字号或增大纸张。');
+    },
   );
 }

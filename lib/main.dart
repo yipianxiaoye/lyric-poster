@@ -599,7 +599,7 @@ class PosterController extends ChangeNotifier {
         draftDirty && historyReady) {
       return;
     }
-    selected = track;
+    if (!_acceptTrack(track)) return;
     activeDraftId = _trackDraftIds[track];
     lyricPage = 0;
     _designChanged();
@@ -620,8 +620,8 @@ class PosterController extends ChangeNotifier {
       album: '专辑',
       coverUrl: '',
     );
+    if (!_acceptTrack(track)) return;
     tracks.insert(0, track);
-    selected = track;
     activeDraftId = null;
     lyricPage = 0;
     currentTab = 1;
@@ -629,14 +629,40 @@ class PosterController extends ChangeNotifier {
     _designChanged();
   }
 
-  void updateSelected({String? title, String? artist, String? lyrics}) {
+  bool _acceptTrack(Track track) {
+    final previous = selected;
+    selected = track;
+    try {
+      document;
+      return true;
+    } catch (_) {
+      selected = previous;
+      historyError = '当前纸张放不下此歌曲，请先减小字号或增大纸张。';
+      notifyListeners();
+      return false;
+    }
+  }
+
+  bool updateSelected({String? title, String? artist, String? lyrics}) {
     final track = selected;
-    if (track == null) return;
+    if (track == null) return false;
+    final previousTitle = track.title;
+    final previousArtist = track.artist;
+    final previousLyrics = track.lyrics;
     if (title != null) track.title = title;
     if (artist != null) track.artist = artist;
     if (lyrics != null) track.lyrics = lyrics;
+    try {
+      document;
+    } catch (_) {
+      track.title = previousTitle;
+      track.artist = previousArtist;
+      track.lyrics = previousLyrics;
+      return false;
+    }
     if (lyricPage >= lyricPageCount) lyricPage = lyricPageCount - 1;
     _designChanged();
+    return true;
   }
 
   void setLyricPage(int page) {
@@ -649,10 +675,18 @@ class PosterController extends ChangeNotifier {
     notifyListeners();
   }
 
-  void setLayout(String value) {
+  bool setLayout(String value) {
+    final previous = layout;
     layout = value;
+    try {
+      document;
+    } catch (_) {
+      layout = previous;
+      return false;
+    }
     lyricPage = lyricPage.clamp(0, lyricPageCount - 1);
     _designChanged();
+    return true;
   }
 
   bool setTitleSize(double value) {
@@ -1812,7 +1846,10 @@ class _PosterWorkspaceState extends State<PosterWorkspace> {
             controller.topWatermark ??
             'LYRIC / ${controller.selected?.album.toUpperCase() ?? ''}',
         hint: '留空可隐藏文字',
-        onChanged: (text) => controller.updateWatermarks(top: text),
+        onChanged: (text) {
+          controller.updateWatermarks(top: text);
+          return true;
+        },
       ),
       Align(
         alignment: Alignment.centerLeft,
@@ -1840,7 +1877,10 @@ class _PosterWorkspaceState extends State<PosterWorkspace> {
         label: '下方水印文字',
         value: controller.bottomWatermark,
         hint: '留空可隐藏文字',
-        onChanged: (text) => controller.updateWatermarks(bottom: text),
+        onChanged: (text) {
+          controller.updateWatermarks(bottom: text);
+          return true;
+        },
       ),
       const SizedBox(height: 12),
       SwitchListTile(
@@ -1936,7 +1976,11 @@ class _PosterWorkspaceState extends State<PosterWorkspace> {
             ChoiceChip(
               label: Text(item),
               selected: controller.layout == item,
-              onSelected: (_) => controller.setLayout(item),
+              onSelected: (_) {
+                if (!controller.setLayout(item)) {
+                  toast(context, '当前版式放不下此字号，请先减小标题或歌词字号。');
+                }
+              },
             ),
         ],
       ),
