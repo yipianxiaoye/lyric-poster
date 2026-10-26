@@ -1,12 +1,12 @@
 import 'dart:io';
 
-import '../lib/netease_client.dart';
+import 'package:lyric_poster/netease_client.dart';
 
 // Explicit live API check; this is not part of the offline test suite.
 Future<void> main(List<String> args) async {
   if (args.isEmpty) {
     stderr.writeln(
-      'Usage: dart run scripts/check-playlist.dart <playlist link or ID> [expected count]',
+      'Usage: dart run scripts/check_playlist.dart <playlist link or ID> [expected count]',
     );
     exitCode = 64;
     return;

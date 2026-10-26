@@ -93,7 +93,7 @@ GitHub Actions 会执行静态分析和测试，并分别构建 Windows ZIP 与 
 单独检查公开歌单及第一首歌的歌词（需要联网，不属于默认测试）：
 
 ```powershell
-dart run scripts/check-playlist.dart <歌单ID>
+dart run scripts/check_playlist.dart <歌单ID>
 ```
 
 ## 参与贡献
