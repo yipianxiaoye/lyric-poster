@@ -5,6 +5,7 @@
 ## 内置字体
 
 - 界面字体：寒蝉全圆体（ChillRoundF v3.000，Regular 400）。
+- 界面保持字体原生常规字重，避免模拟粗体引起部分汉字的笔画异常；海报字体独立设置。
 - 来源：[ChillType / Warren2060，官方 v3.0 原文件](https://github.com/Warren2060/ChillRound/blob/46dda1602729b58de96e3fdee9f918d7aaa64727/ChillRoundF%20v3.0.ttf)。
 - 字体 SHA-256：`7dae804b344f7bc1a1c8426b9515e9b54d7baac3e123263d0bae94d0a305a732`。
 - 许可：SIL Open Font License 1.1。

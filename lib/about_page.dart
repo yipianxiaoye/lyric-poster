@@ -61,11 +61,11 @@ class _AboutPageState extends State<AboutPage> {
                                 '词笺 · Lyric Poster',
                                 style: TextStyle(
                                   fontSize: 20,
-                                  fontWeight: FontWeight.w700,
+                                  fontWeight: FontWeight.w400,
                                 ),
                               ),
                               SizedBox(height: 4),
-                              Text('版本 1.5.1+9'),
+                              Text('版本 1.5.2+10'),
                             ],
                           ),
                         ),
@@ -97,7 +97,7 @@ class _AboutPageState extends State<AboutPage> {
                     sectionTitle('开源与许可'),
                     const SizedBox(height: 12),
                     const Text(
-                      '软件源码：MIT License\n界面字体：寒蝉全圆体，SIL Open Font License 1.1\n默认海报字体：Noto Sans SC，SIL Open Font License 1.1',
+                      '软件源码：MIT License\n界面字体：寒蝉全圆体（原生常规字重），SIL Open Font License 1.1\n默认海报字体：Noto Sans SC，SIL Open Font License 1.1',
                       style: TextStyle(height: 1.7),
                     ),
                     const SizedBox(height: 12),
@@ -176,7 +176,7 @@ class _AboutPageState extends State<AboutPage> {
                       '一片小叶',
                       style: TextStyle(
                         fontSize: 18,
-                        fontWeight: FontWeight.w700,
+                        fontWeight: FontWeight.w400,
                       ),
                     ),
                     const SizedBox(height: 4),
@@ -201,7 +201,7 @@ class _AboutPageState extends State<AboutPage> {
 
   Widget sectionTitle(String title) => Text(
     title,
-    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w400),
   );
 
   Widget avatarFallback() => ColoredBox(

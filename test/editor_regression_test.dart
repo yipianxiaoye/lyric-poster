@@ -174,6 +174,116 @@ void main() {
     }
   });
 
+  testWidgets('首页欢张使用寒蝉原字体常规字重，双端不触发合成粗体', (tester) async {
+    final controller = sample();
+    addTearDown(controller.dispose);
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    tester.view.devicePixelRatio = 1;
+    for (final width in [390.0, 1280.0]) {
+      tester.view.physicalSize = Size(width, 900);
+      await tester.pumpWidget(
+        RepaintBoundary(
+          key: const ValueKey('font-home-preview'),
+          child: MaterialApp(
+            debugShowCheckedModeBanner: false,
+            theme: controller.appTheme,
+            home: PosterWorkspace(controller: controller),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      final paragraph = tester.renderObject<RenderParagraph>(
+        find.text('把喜欢的歌，做成一张海报。'),
+      );
+      expect(paragraph.text.style!.fontFamily, appFontFamily);
+      expect(paragraph.text.style!.fontWeight, FontWeight.w400);
+      expect(tester.takeException(), isNull);
+      if (const bool.fromEnvironment('WRITE_PREVIEWS')) {
+        await tester.runAsync(() async {
+          final boundary = tester.renderObject<RenderRepaintBoundary>(
+            find.byKey(const ValueKey('font-home-preview')),
+          );
+          final image = await boundary.toImage();
+          final data = await image.toByteData(format: ui.ImageByteFormat.png);
+          await Directory('work/previews').create(recursive: true);
+          await File(
+            'work/previews/font-home-${width.toInt()}.png',
+          ).writeAsBytes(data!.buffer.asUint8List());
+          image.dispose();
+        });
+      }
+    }
+  });
+
+  testWidgets('寒蝉全圆体在Flutter中的常规与合成粗体字形对照', (tester) async {
+    if (!const bool.fromEnvironment('WRITE_PREVIEWS')) return;
+    final controller = sample();
+    addTearDown(controller.dispose);
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(1100, 560);
+    await tester.pumpWidget(
+      RepaintBoundary(
+        key: const ValueKey('font-comparison-preview'),
+        child: MaterialApp(
+          debugShowCheckedModeBanner: false,
+          theme: controller.appTheme,
+          home: Scaffold(
+            body: Padding(
+              padding: const EdgeInsets.all(32),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    '同一官方字体 · Flutter 实际渲染',
+                    style: TextStyle(fontSize: 22),
+                  ),
+                  const SizedBox(height: 20),
+                  for (final weight in [
+                    FontWeight.w400,
+                    FontWeight.w600,
+                    FontWeight.w800,
+                  ]) ...[
+                    Text(
+                      '字重 ${weight.value}',
+                      style: const TextStyle(fontSize: 16),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      '把喜欢的歌，做成一张海报。  欢 张',
+                      style: TextStyle(
+                        fontFamily: appFontFamily,
+                        fontSize: 40,
+                        fontWeight: weight,
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+                  ],
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+    await tester.runAsync(() async {
+      final boundary = tester.renderObject<RenderRepaintBoundary>(
+        find.byKey(const ValueKey('font-comparison-preview')),
+      );
+      final image = await boundary.toImage();
+      final data = await image.toByteData(format: ui.ImageByteFormat.png);
+      await Directory('work/previews').create(recursive: true);
+      await File(
+        'work/previews/font-weight-comparison.png',
+      ).writeAsBytes(data!.buffer.asUint8List());
+      image.dispose();
+    });
+  });
+
   testWidgets('第一页有标题和歌手，后续页仅有歌词与页脚', (tester) async {
     final controller = sample();
     addTearDown(controller.dispose);
@@ -323,6 +433,78 @@ void main() {
     }
   }
 
+  testWidgets('动画进行中快速切换设计和导出始终只有一份海报预览', (tester) async {
+    final controller = sample()..setTab(1);
+    addTearDown(controller.dispose);
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(1280, 900);
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: controller.appTheme,
+        home: PosterWorkspace(controller: controller),
+      ),
+    );
+    await tester.pumpAndSettle();
+    for (final tab in [2, 1, 2, 1, 2, 1]) {
+      controller.setTab(tab);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 35));
+      expect(find.byType(PosterCanvas), findsOneWidget);
+      expect(find.byKey(const ValueKey('poster-lyrics')), findsOneWidget);
+      expect(tester.takeException(), isNull, reason: '切换到 tab$tab');
+    }
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('design-sidebar')), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('调整字号和拖动背景时海报立即更新且不会重新淡出', (tester) async {
+    final controller = sample()..setTab(1);
+    addTearDown(controller.dispose);
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(1280, 900);
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: controller.appTheme,
+        home: PosterWorkspace(controller: controller),
+      ),
+    );
+    await tester.pumpAndSettle();
+    void expectFullyVisible() {
+      for (final name in [
+        'workspace-motion',
+        'editor-motion',
+        'preview-motion',
+      ]) {
+        final fade = find.descendant(
+          of: find.byKey(ValueKey(name)),
+          matching: find.byType(FadeTransition),
+        );
+        expect(tester.widget<FadeTransition>(fade.first).opacity.value, 1);
+      }
+    }
+
+    controller.setLyricSize(16);
+    await tester.pump();
+    expect(controller.document!.lyricStyle.fontSize, 16);
+    expectFullyVisible();
+    controller.moveBackground(const Offset(12, -8));
+    controller.scaleBackground(1.15);
+    await tester.pump();
+    expect(controller.backgroundOffset, const Offset(12, -8));
+    expect(controller.backgroundScale, 1.15);
+    expectFullyVisible();
+    controller.updateSelected(title: '更新后的标题');
+    await tester.pump();
+    expect(find.text('更新后的标题'), findsOneWidget);
+    expectFullyVisible();
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('独立导出是固定300DPI且不改变当前歌词页', (tester) async {
     final controller = sample();
     addTearDown(controller.dispose);
@@ -355,6 +537,42 @@ void main() {
     });
     expect(controller.lyricPage, 0);
     expect(outputs.length, doc.pages.length);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('页面动画进行中导出的海报像素与静止时一致', (tester) async {
+    final controller = sample()..setTab(1);
+    addTearDown(controller.dispose);
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(1280, 900);
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: controller.appTheme,
+        home: PosterWorkspace(controller: controller),
+      ),
+    );
+    await tester.pumpAndSettle();
+    final context = tester.element(find.byType(PosterWorkspace));
+    final document = controller.document!;
+    late Uint8List baseline;
+    await tester.runAsync(() async {
+      baseline = await renderPosterPage(document, 0, context: context, dpi: 72);
+    });
+    controller.setTab(2);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 35));
+    await tester.runAsync(() async {
+      final duringMotion = await renderPosterPage(
+        document,
+        0,
+        context: context,
+        dpi: 72,
+      );
+      expect(duringMotion, orderedEquals(baseline));
+    });
+    await tester.pumpAndSettle();
     expect(tester.takeException(), isNull);
   });
 

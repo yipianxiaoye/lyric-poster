@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart' show FontWeight, TextTheme;
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -10,6 +11,27 @@ import 'font_storage_io.dart'
 
 const defaultFontFamily = 'PosterSans';
 const appFontFamily = 'ChillRound';
+
+/// ChillRoundF supplies a Regular face only. Synthetic bold distorts some
+/// outlines, so interface text uses its native weight at every text size.
+TextTheme appTextTheme(TextTheme base) => base.copyWith(
+  displayLarge: base.displayLarge?.copyWith(fontWeight: FontWeight.w400),
+  displayMedium: base.displayMedium?.copyWith(fontWeight: FontWeight.w400),
+  displaySmall: base.displaySmall?.copyWith(fontWeight: FontWeight.w400),
+  headlineLarge: base.headlineLarge?.copyWith(fontWeight: FontWeight.w400),
+  headlineMedium: base.headlineMedium?.copyWith(fontWeight: FontWeight.w400),
+  headlineSmall: base.headlineSmall?.copyWith(fontWeight: FontWeight.w400),
+  titleLarge: base.titleLarge?.copyWith(fontWeight: FontWeight.w400),
+  titleMedium: base.titleMedium?.copyWith(fontWeight: FontWeight.w400),
+  titleSmall: base.titleSmall?.copyWith(fontWeight: FontWeight.w400),
+  bodyLarge: base.bodyLarge?.copyWith(fontWeight: FontWeight.w400),
+  bodyMedium: base.bodyMedium?.copyWith(fontWeight: FontWeight.w400),
+  bodySmall: base.bodySmall?.copyWith(fontWeight: FontWeight.w400),
+  labelLarge: base.labelLarge?.copyWith(fontWeight: FontWeight.w400),
+  labelMedium: base.labelMedium?.copyWith(fontWeight: FontWeight.w400),
+  labelSmall: base.labelSmall?.copyWith(fontWeight: FontWeight.w400),
+);
+
 const chineseFontFallback = <String>[
   'PosterSans',
   'Microsoft YaHei',

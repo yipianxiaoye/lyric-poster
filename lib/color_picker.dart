@@ -237,7 +237,7 @@ class _ColorPaletteEditorState extends State<ColorPaletteEditor> {
         ],
       ),
       const SizedBox(height: 16),
-      const Text('常用颜色', style: TextStyle(fontWeight: FontWeight.w600)),
+      const Text('常用颜色', style: TextStyle(fontWeight: FontWeight.w400)),
       const SizedBox(height: 10),
       ColorPresets(
         value: hsv.toColor(),
@@ -393,7 +393,7 @@ class _ColorDialogState extends State<_ColorDialog> {
               ],
             ),
             const SizedBox(height: 18),
-            const Text('常用颜色', style: TextStyle(fontWeight: FontWeight.w600)),
+            const Text('常用颜色', style: TextStyle(fontWeight: FontWeight.w400)),
             const SizedBox(height: 10),
             ColorPresets(
               value: hsv.toColor(),

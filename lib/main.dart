@@ -16,6 +16,7 @@ import 'poster_renderer.dart';
 import 'history_store.dart';
 import 'editor_fields.dart';
 import 'about_page.dart';
+import 'app_motion.dart';
 
 export 'netease_client.dart';
 
@@ -164,7 +165,7 @@ class PosterController extends ChangeNotifier {
       seedColor: preset.seed,
       brightness: Brightness.dark,
     );
-    return ThemeData(
+    final theme = ThemeData(
       fontFamily: appFontFamily,
       fontFamilyFallback: chineseFontFallback,
       colorScheme: scheme,
@@ -193,6 +194,10 @@ class PosterController extends ChangeNotifier {
           vertical: 14,
         ),
       ),
+    );
+    return theme.copyWith(
+      textTheme: appTextTheme(theme.textTheme),
+      primaryTextTheme: appTextTheme(theme.primaryTextTheme),
     );
   }
 
@@ -939,7 +944,7 @@ class _PosterWorkspaceState extends State<PosterWorkspace> {
               children: [
                 Icon(Icons.auto_awesome, color: controller.accent),
                 const SizedBox(width: 10),
-                const Text('词笺', style: TextStyle(fontWeight: FontWeight.w800)),
+                const Text('词笺', style: TextStyle(fontWeight: FontWeight.w400)),
                 if (constraints.maxWidth >= 560) const SizedBox(width: 10),
                 if (constraints.maxWidth >= 560)
                   const Text(
@@ -973,12 +978,12 @@ class _PosterWorkspaceState extends State<PosterWorkspace> {
                     buildRail(),
                     if (controller.currentTab == 0)
                       SizedBox(width: 320, child: buildLibrary()),
-                    Expanded(child: buildMain(context)),
+                    Expanded(child: buildAnimatedMain(context)),
                   ],
                 )
               : Column(
                   children: [
-                    Expanded(child: buildMain(context)),
+                    Expanded(child: buildAnimatedMain(context)),
                     NavigationBar(
                       selectedIndex: controller.currentTab,
                       onDestinationSelected: controller.setTab,
@@ -1020,6 +1025,12 @@ class _PosterWorkspaceState extends State<PosterWorkspace> {
         );
       },
     ),
+  );
+
+  Widget buildAnimatedMain(BuildContext context) => AppMotion(
+    key: const ValueKey('workspace-motion'),
+    identity: controller.currentTab,
+    child: buildMain(context),
   );
 
   Widget buildRail() => NavigationRail(
@@ -1070,7 +1081,7 @@ class _PosterWorkspaceState extends State<PosterWorkspace> {
         children: [
           const Text(
             '我的音乐',
-            style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
+            style: TextStyle(fontSize: 18, fontWeight: FontWeight.w400),
           ),
           const SizedBox(height: 5),
           Text(
@@ -1131,7 +1142,7 @@ class _PosterWorkspaceState extends State<PosterWorkspace> {
           ),
           if (controller.searchResults.isNotEmpty) ...[
             const SizedBox(height: 14),
-            const Text('搜索结果', style: TextStyle(fontWeight: FontWeight.w700)),
+            const Text('搜索结果', style: TextStyle(fontWeight: FontWeight.w400)),
             const SizedBox(height: 5),
             SizedBox(
               height: 190,
@@ -1144,7 +1155,7 @@ class _PosterWorkspaceState extends State<PosterWorkspace> {
           ],
           Text(
             controller.searchResults.isNotEmpty ? '我的歌单' : '歌曲列表',
-            style: const TextStyle(fontWeight: FontWeight.w700),
+            style: const TextStyle(fontWeight: FontWeight.w400),
           ),
           const SizedBox(height: 6),
           Expanded(
@@ -1185,7 +1196,7 @@ class _PosterWorkspaceState extends State<PosterWorkspace> {
           track.title,
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
-          style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+          style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w400),
         ),
         subtitle: Text(
           track.artist,
@@ -1230,7 +1241,7 @@ class _PosterWorkspaceState extends State<PosterWorkspace> {
         children: [
           const Text(
             '历史记录',
-            style: TextStyle(fontSize: 24, fontWeight: FontWeight.w800),
+            style: TextStyle(fontSize: 24, fontWeight: FontWeight.w400),
           ),
           const SizedBox(height: 6),
           const Text(
@@ -1301,7 +1312,7 @@ class _PosterWorkspaceState extends State<PosterWorkspace> {
                         entry.title,
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(fontWeight: FontWeight.w700),
+                        style: const TextStyle(fontWeight: FontWeight.w400),
                       ),
                     ),
                     IconButton(
@@ -1403,7 +1414,7 @@ class _PosterWorkspaceState extends State<PosterWorkspace> {
               '把喜欢的歌，做成一张海报。',
               style: Theme.of(
                 context,
-              ).textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.w800),
+              ).textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.w400),
             ),
             const SizedBox(height: 8),
             const Text(
@@ -1424,7 +1435,7 @@ class _PosterWorkspaceState extends State<PosterWorkspace> {
                     const Text(
                       '导入网易云歌单',
                       style: TextStyle(
-                        fontWeight: FontWeight.w700,
+                        fontWeight: FontWeight.w400,
                         fontSize: 16,
                       ),
                     ),
@@ -1496,7 +1507,7 @@ class _PosterWorkspaceState extends State<PosterWorkspace> {
                         '我的音乐',
                         style: TextStyle(
                           fontSize: 18,
-                          fontWeight: FontWeight.w700,
+                          fontWeight: FontWeight.w400,
                         ),
                       ),
                       const SizedBox(height: 5),
@@ -1558,7 +1569,7 @@ class _PosterWorkspaceState extends State<PosterWorkspace> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('搜索网易云歌曲', style: TextStyle(fontWeight: FontWeight.w700)),
+          const Text('搜索网易云歌曲', style: TextStyle(fontWeight: FontWeight.w400)),
           const SizedBox(height: 10),
           TextField(
             controller: search,
@@ -1613,7 +1624,7 @@ class _PosterWorkspaceState extends State<PosterWorkspace> {
         children: [
           Icon(icon, color: controller.accent, size: 23),
           const SizedBox(height: 12),
-          Text(title, style: const TextStyle(fontWeight: FontWeight.w700)),
+          Text(title, style: const TextStyle(fontWeight: FontWeight.w400)),
           const SizedBox(height: 5),
           Text(
             subtitle,
@@ -1766,15 +1777,19 @@ class _PosterWorkspaceState extends State<PosterWorkspace> {
               ),
             const Divider(height: 18),
             Expanded(
-              child: SingleChildScrollView(
-                key: PageStorageKey('editor-$editorSection'),
-                child: switch (editorSection) {
-                  '文字与字体' => buildTextTools(),
-                  '背景与颜色' => buildColorTools(),
-                  '图片与贴纸' => buildImageTools(),
-                  '上下水印' => buildWatermarkTools(),
-                  _ => buildLayoutTools(),
-                },
+              child: AppMotion(
+                key: const ValueKey('editor-motion'),
+                identity: editorSection,
+                child: SingleChildScrollView(
+                  key: PageStorageKey('editor-$editorSection'),
+                  child: switch (editorSection) {
+                    '文字与字体' => buildTextTools(),
+                    '背景与颜色' => buildColorTools(),
+                    '图片与贴纸' => buildImageTools(),
+                    '上下水印' => buildWatermarkTools(),
+                    _ => buildLayoutTools(),
+                  },
+                ),
               ),
             ),
           ],
@@ -1817,7 +1832,7 @@ class _PosterWorkspaceState extends State<PosterWorkspace> {
   Widget buildColorTools() => Column(
     crossAxisAlignment: CrossAxisAlignment.stretch,
     children: [
-      const Text('背景调色盘', style: TextStyle(fontWeight: FontWeight.w700)),
+      const Text('背景调色盘', style: TextStyle(fontWeight: FontWeight.w400)),
       const SizedBox(height: 12),
       ColorPaletteEditor(
         key: const ValueKey('background-palette'),
@@ -1825,7 +1840,7 @@ class _PosterWorkspaceState extends State<PosterWorkspace> {
         onChanged: controller.setBackground,
       ),
       const Divider(height: 28),
-      const Text('强调色', style: TextStyle(fontWeight: FontWeight.w700)),
+      const Text('强调色', style: TextStyle(fontWeight: FontWeight.w400)),
       const SizedBox(height: 12),
       ColorPresets(value: controller.accent, onChanged: controller.setAccent),
       const SizedBox(height: 10),
@@ -1900,16 +1915,22 @@ class _PosterWorkspaceState extends State<PosterWorkspace> {
     ],
   );
 
+  Widget animatedPosterPreview() => AppMotion(
+    key: const ValueKey('preview-motion'),
+    identity: (controller.selected, controller.lyricPage),
+    child: RepaintBoundary(
+      key: previewKey,
+      child: PosterCanvas(controller: controller, onElementTap: editElement),
+    ),
+  );
+
   Widget previewPanel() => Card(
     child: LayoutBuilder(
       builder: (context, constraints) {
         if (constraints.maxHeight < 135) {
           return Padding(
             padding: const EdgeInsets.all(4),
-            child: PosterCanvas(
-              controller: controller,
-              onElementTap: editElement,
-            ),
+            child: animatedPosterPreview(),
           );
         }
         return Padding(
@@ -1921,7 +1942,7 @@ class _PosterWorkspaceState extends State<PosterWorkspace> {
                   const Expanded(
                     child: Text(
                       '整页预览',
-                      style: TextStyle(fontWeight: FontWeight.w700),
+                      style: TextStyle(fontWeight: FontWeight.w400),
                     ),
                   ),
                   IconButton(
@@ -1948,17 +1969,7 @@ class _PosterWorkspaceState extends State<PosterWorkspace> {
                 ],
               ),
               const SizedBox(height: 8),
-              Expanded(
-                child: Center(
-                  child: RepaintBoundary(
-                    key: previewKey,
-                    child: PosterCanvas(
-                      controller: controller,
-                      onElementTap: editElement,
-                    ),
-                  ),
-                ),
-              ),
+              Expanded(child: Center(child: animatedPosterPreview())),
               const SizedBox(height: 8),
               Text(
                 controller.dimensions,
@@ -2217,7 +2228,7 @@ class _PosterWorkspaceState extends State<PosterWorkspace> {
   Widget buildFontControls() => Column(
     crossAxisAlignment: CrossAxisAlignment.start,
     children: [
-      const Text('海报字体', style: TextStyle(fontWeight: FontWeight.w600)),
+      const Text('海报字体', style: TextStyle(fontWeight: FontWeight.w400)),
       const SizedBox(height: 10),
       Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -2287,7 +2298,7 @@ class _PosterWorkspaceState extends State<PosterWorkspace> {
           children: [
             const Text(
               '导出与打印',
-              style: TextStyle(fontSize: 24, fontWeight: FontWeight.w800),
+              style: TextStyle(fontSize: 24, fontWeight: FontWeight.w400),
             ),
             const SizedBox(height: 8),
             const Text(
@@ -2303,7 +2314,7 @@ class _PosterWorkspaceState extends State<PosterWorkspace> {
                   children: [
                     const Text(
                       '画布尺寸',
-                      style: TextStyle(fontWeight: FontWeight.w700),
+                      style: TextStyle(fontWeight: FontWeight.w400),
                     ),
                     const SizedBox(height: 12),
                     Wrap(
@@ -2375,7 +2386,7 @@ class _PosterWorkspaceState extends State<PosterWorkspace> {
           children: [
             const Text(
               '设置',
-              style: TextStyle(fontSize: 24, fontWeight: FontWeight.w800),
+              style: TextStyle(fontSize: 24, fontWeight: FontWeight.w400),
             ),
             const SizedBox(height: 8),
             const Text(
@@ -2391,7 +2402,7 @@ class _PosterWorkspaceState extends State<PosterWorkspace> {
                   children: [
                     const Text(
                       '软件主题',
-                      style: TextStyle(fontWeight: FontWeight.w700),
+                      style: TextStyle(fontWeight: FontWeight.w400),
                     ),
                     const SizedBox(height: 14),
                     Wrap(
@@ -2434,7 +2445,7 @@ class _PosterWorkspaceState extends State<PosterWorkspace> {
                   children: [
                     const Text(
                       '默认设计',
-                      style: TextStyle(fontWeight: FontWeight.w700),
+                      style: TextStyle(fontWeight: FontWeight.w400),
                     ),
                     const SizedBox(height: 12),
                     const Text(

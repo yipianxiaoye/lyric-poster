@@ -61,7 +61,7 @@ void main() {
       );
       await tester.pumpAndSettle();
       expect(find.text('词笺 · Lyric Poster'), findsOneWidget);
-      expect(find.text('版本 1.5.1+9'), findsOneWidget);
+      expect(find.text('版本 1.5.2+10'), findsOneWidget);
       expect(find.text('一片小叶'), findsOneWidget);
       expect(find.text('@yipianxiaoye'), findsOneWidget);
       expect(find.text('https://github.com/yipianxiaoye'), findsOneWidget);
@@ -72,7 +72,7 @@ void main() {
       expect(find.textContaining('资料与头像来自作者'), findsNothing);
       expect(find.textContaining('MIT License'), findsOneWidget);
       expect(
-        find.textContaining('界面字体：寒蝉全圆体，SIL Open Font License 1.1'),
+        find.textContaining('界面字体：寒蝉全圆体（原生常规字重），SIL Open Font License 1.1'),
         findsOneWidget,
       );
       expect(
