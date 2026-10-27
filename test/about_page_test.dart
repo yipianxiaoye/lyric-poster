@@ -46,7 +46,7 @@ void main() {
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
     tester.view.devicePixelRatio = 1;
-    for (final width in [390.0, 1280.0]) {
+    for (final width in [320.0, 390.0, 1280.0]) {
       tester.view.physicalSize = Size(width, 900);
       await tester.pumpWidget(
         MaterialApp(
@@ -61,10 +61,24 @@ void main() {
       );
       await tester.pumpAndSettle();
       expect(find.text('词笺 · Lyric Poster'), findsOneWidget);
-      expect(find.text('版本 1.5.0+8'), findsOneWidget);
-      expect(find.text('yipianxiaoye'), findsOneWidget);
+      expect(find.text('版本 1.5.1+9'), findsOneWidget);
+      expect(find.text('一片小叶'), findsOneWidget);
+      expect(find.text('@yipianxiaoye'), findsOneWidget);
+      expect(find.text('https://github.com/yipianxiaoye'), findsOneWidget);
+      expect(find.text('yipianxiaoye'), findsNothing);
       expect(find.text('本机数据'), findsOneWidget);
+      expect(find.textContaining('本机数据不会被上传。'), findsOneWidget);
+      expect(find.textContaining('本机记录不会上传到 GitHub'), findsNothing);
+      expect(find.textContaining('资料与头像来自作者'), findsNothing);
       expect(find.textContaining('MIT License'), findsOneWidget);
+      expect(
+        find.textContaining('界面字体：寒蝉全圆体，SIL Open Font License 1.1'),
+        findsOneWidget,
+      );
+      expect(
+        find.textContaining('默认海报字体：Noto Sans SC，SIL Open Font License 1.1'),
+        findsOneWidget,
+      );
       expect(find.byTooltip('复制作者主页'), findsOneWidget);
       expect(tester.takeException(), isNull);
     }

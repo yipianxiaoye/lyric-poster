@@ -4,7 +4,14 @@
 
 ## 内置字体
 
-- 字体：Noto Sans SC（中文界面与海报默认字体）。
+- 界面字体：寒蝉全圆体（ChillRoundF v3.000，Regular 400）。
+- 来源：[ChillType / Warren2060，官方 v3.0 原文件](https://github.com/Warren2060/ChillRound/blob/46dda1602729b58de96e3fdee9f918d7aaa64727/ChillRoundF%20v3.0.ttf)。
+- 字体 SHA-256：`7dae804b344f7bc1a1c8426b9515e9b54d7baac3e123263d0bae94d0a305a732`。
+- 许可：SIL Open Font License 1.1。
+- 字体原文件未经修改或子集化；完整原始版权与许可：[assets/fonts/ChillRoundF-OFL.txt](assets/fonts/ChillRoundF-OFL.txt)。
+- Windows 发行包同时附带 `CHILLROUND-FONT-LICENSE.txt`。
+
+- 海报默认字体：Noto Sans SC。用户可在海报中导入和使用自己的字体。
 - 来源：[Google Fonts / notosanssc](https://github.com/google/fonts/tree/main/ofl/notosanssc)。
 - 许可：SIL Open Font License 1.1。
 - 完整原始版权与许可：[assets/fonts/OFL.txt](assets/fonts/OFL.txt)。

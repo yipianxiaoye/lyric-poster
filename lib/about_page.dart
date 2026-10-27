@@ -65,7 +65,7 @@ class _AboutPageState extends State<AboutPage> {
                                 ),
                               ),
                               SizedBox(height: 4),
-                              Text('版本 1.5.0+8'),
+                              Text('版本 1.5.1+9'),
                             ],
                           ),
                         ),
@@ -97,7 +97,7 @@ class _AboutPageState extends State<AboutPage> {
                     sectionTitle('开源与许可'),
                     const SizedBox(height: 12),
                     const Text(
-                      '软件源码：MIT License\n内置中文字体：Noto Sans SC，SIL Open Font License 1.1',
+                      '软件源码：MIT License\n界面字体：寒蝉全圆体，SIL Open Font License 1.1\n默认海报字体：Noto Sans SC，SIL Open Font License 1.1',
                       style: TextStyle(height: 1.7),
                     ),
                     const SizedBox(height: 12),
@@ -127,7 +127,7 @@ class _AboutPageState extends State<AboutPage> {
                     ),
                     const SizedBox(height: 8),
                     const Text(
-                      '本机记录不会上传到 GitHub。删除记录时，相应草稿中的图片也会一起删除。',
+                      '本机数据不会被上传。删除记录时，相应草稿中的图片也会一起删除。',
                       style: TextStyle(fontSize: 12, height: 1.6),
                     ),
                   ],
@@ -172,9 +172,9 @@ class _AboutPageState extends State<AboutPage> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      author.displayName,
-                      style: const TextStyle(
+                    const Text(
+                      '一片小叶',
+                      style: TextStyle(
                         fontSize: 18,
                         fontWeight: FontWeight.w700,
                       ),
@@ -194,7 +194,6 @@ class _AboutPageState extends State<AboutPage> {
           ],
           const SizedBox(height: 12),
           copyLink(author.profileUrl, '复制作者主页'),
-          const Text('资料与头像来自作者的 GitHub 公开主页。', style: TextStyle(fontSize: 12)),
         ],
       ),
     ),

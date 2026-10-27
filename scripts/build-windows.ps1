@@ -123,6 +123,7 @@ try {
         Copy-Item -LiteralPath (Join-Path $projectRoot $notice) -Destination (Join-Path $bundle $notice)
     }
     Copy-Item -LiteralPath (Join-Path $projectRoot 'assets\fonts\OFL.txt') -Destination (Join-Path $bundle 'FONT-LICENSE.txt')
+    Copy-Item -LiteralPath (Join-Path $projectRoot 'assets\fonts\ChillRoundF-OFL.txt') -Destination (Join-Path $bundle 'CHILLROUND-FONT-LICENSE.txt')
 
     @(
         'Lyric Poster / Windows x64 portable edition',

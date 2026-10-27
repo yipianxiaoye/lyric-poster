@@ -165,7 +165,7 @@ class PosterController extends ChangeNotifier {
       brightness: Brightness.dark,
     );
     return ThemeData(
-      fontFamily: defaultFontFamily,
+      fontFamily: appFontFamily,
       fontFamilyFallback: chineseFontFallback,
       colorScheme: scheme,
       useMaterial3: true,
@@ -918,6 +918,7 @@ class _PosterWorkspaceState extends State<PosterWorkspace> {
   bool exporting = false;
   String editorSection = '排版与纸张';
   bool toolsVisible = true;
+  static const editorSections = ['排版与纸张', '文字与字体', '背景与颜色', '图片与贴纸', '上下水印'];
 
   @override
   void dispose() {
@@ -1730,32 +1731,39 @@ class _PosterWorkspaceState extends State<PosterWorkspace> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: Row(
+            if (constraints.maxHeight < 230)
+              DropdownButton<String>(
+                key: const ValueKey('compact-editor-sections'),
+                value: editorSection,
+                isExpanded: true,
+                underline: const SizedBox.shrink(),
+                items: [
+                  for (final section in editorSections)
+                    DropdownMenuItem(value: section, child: Text(section)),
+                ],
+                onChanged: (section) {
+                  if (section != null) selectEditorSection(section);
+                },
+              )
+            else
+              Wrap(
+                key: const ValueKey('editor-sections'),
+                spacing: 6,
+                runSpacing: 4,
                 children: [
-                  for (final section in [
-                    '排版与纸张',
-                    '文字与字体',
-                    '背景与颜色',
-                    '图片与贴纸',
-                    '上下水印',
-                  ])
-                    Padding(
-                      padding: const EdgeInsets.only(right: 6),
-                      child: ChoiceChip(
-                        label: Text(
-                          section,
-                          style: const TextStyle(fontSize: 12),
-                        ),
-                        selected: editorSection == section,
-                        onSelected: (_) => selectEditorSection(section),
-                        visualDensity: VisualDensity.compact,
+                  for (final section in editorSections)
+                    ChoiceChip(
+                      key: ValueKey('editor-section-$section'),
+                      label: Text(
+                        section,
+                        style: const TextStyle(fontSize: 12),
                       ),
+                      selected: editorSection == section,
+                      onSelected: (_) => selectEditorSection(section),
+                      visualDensity: VisualDensity.compact,
                     ),
                 ],
               ),
-            ),
             const Divider(height: 18),
             Expanded(
               child: SingleChildScrollView(

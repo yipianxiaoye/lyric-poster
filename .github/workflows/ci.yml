@@ -55,6 +55,7 @@ jobs:
           Get-ChildItem -LiteralPath $release | Where-Object { $_.Extension -notin @('.pdb', '.lib', '.exp') } | Copy-Item -Destination $bundle -Recurse
           Copy-Item LICENSE,THIRD_PARTY_NOTICES.md -Destination $bundle
           Copy-Item assets/fonts/OFL.txt (Join-Path $bundle 'FONT-LICENSE.txt')
+          Copy-Item assets/fonts/ChillRoundF-OFL.txt (Join-Path $bundle 'CHILLROUND-FONT-LICENSE.txt')
           $vswhere = Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio/Installer/vswhere.exe'
           $vsPath = & $vswhere -latest -products '*' -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
           $redist = Join-Path $vsPath 'VC/Redist/MSVC'

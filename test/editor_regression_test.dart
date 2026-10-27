@@ -45,6 +45,9 @@ void main() {
     final loader = FontLoader(defaultFontFamily)
       ..addFont(Future.value(ByteData.sublistView(fontBytes)));
     await loader.load();
+    final appFont = FontLoader(appFontFamily)
+      ..addFont(rootBundle.load('assets/fonts/ChillRoundF.ttf'));
+    await appFont.load();
     final icons = FontLoader('MaterialIcons')
       ..addFont(rootBundle.load('fonts/MaterialIcons-Regular.otf'));
     await icons.load();
@@ -80,6 +83,16 @@ void main() {
       controller.document!.lyricStyle.color!.computeLuminance(),
       greaterThan(.9),
     );
+  });
+
+  test('界面使用寒蝉全圆体，已有海报的字体和打印版式保持独立', () {
+    final controller = sample();
+    addTearDown(controller.dispose);
+    expect(controller.appTheme.textTheme.bodyMedium!.fontFamily, appFontFamily);
+    expect(appFontFamily, 'ChillRound');
+    expect(controller.fonts.selectedFamily, defaultFontFamily);
+    expect(controller.document!.lyricStyle.fontFamily, defaultFontFamily);
+    expect(controller.document!.titleStyle.fontFamily, defaultFontFamily);
   });
 
   test('旧版未改动的背景迁移到白色，用户自定义颜色保留', () async {
@@ -290,7 +303,9 @@ void main() {
         if (tab == 4) expect(find.text('导入字体'), findsOneWidget);
         if (tab == 5) expect(find.text('关于词笺'), findsOneWidget);
         expect(tester.takeException(), isNull, reason: '$width, tab $tab');
-        if (const bool.fromEnvironment('WRITE_PREVIEWS')) {
+        if (const bool.fromEnvironment('WRITE_PREVIEWS') &&
+            (width == 390 || width == 1280) &&
+            (tab == 1 || tab == 5)) {
           await tester.runAsync(() async {
             final boundary = tester.renderObject<RenderRepaintBoundary>(
               find.byKey(const ValueKey('workspace-scene')),
@@ -640,6 +655,80 @@ void main() {
         tester.getRect(poster).bottom,
         lessThanOrEqualTo(tester.getRect(sidebar).top),
       );
+      expect(
+        tester.takeException(),
+        isNull,
+        reason: 'height $height keyboard $keyboard',
+      );
+    }
+  });
+
+  for (final width in [390.0, 1280.0, 1920.0]) {
+    testWidgets('设计分组 ${width.toInt()}px 完整显示并可直接点击最右侧水印按钮', (tester) async {
+      final controller = sample()..setTab(1);
+      addTearDown(controller.dispose);
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = Size(width, 900);
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: controller.appTheme,
+          home: PosterWorkspace(controller: controller),
+        ),
+      );
+      await tester.pumpAndSettle();
+      final sidebar = find.byKey(const ValueKey('design-sidebar'));
+      expect(find.byKey(const ValueKey('editor-sections')), findsOneWidget);
+      for (final section in ['排版与纸张', '文字与字体', '背景与颜色', '图片与贴纸', '上下水印']) {
+        final button = find.byKey(ValueKey('editor-section-$section'));
+        final bounds = tester.getRect(sidebar);
+        final rect = tester.getRect(button);
+        expect(rect.left, greaterThanOrEqualTo(bounds.left));
+        expect(rect.top, greaterThanOrEqualTo(bounds.top));
+        expect(rect.right, lessThanOrEqualTo(bounds.right));
+        expect(rect.bottom, lessThanOrEqualTo(bounds.bottom));
+        expect(button.hitTestable(), findsOneWidget);
+        await tester.tap(button);
+        await tester.pumpAndSettle();
+        expect(tester.widget<ChoiceChip>(button).selected, isTrue);
+        expect(tester.takeException(), isNull, reason: '$width / $section');
+      }
+      expect(find.byKey(const ValueKey('edit-top-watermark')), findsOneWidget);
+      expect(find.byType(Dialog), findsNothing);
+    });
+  }
+
+  testWidgets('短屏和键盘展开时可通过紧凑分组切换到最后一项', (tester) async {
+    final controller = sample()..setTab(1);
+    addTearDown(controller.dispose);
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    addTearDown(tester.view.resetViewInsets);
+    tester.view.devicePixelRatio = 1;
+    for (final (height, keyboard) in [(520.0, 0.0), (800.0, 300.0)]) {
+      tester.view.physicalSize = Size(390, height);
+      tester.view.viewInsets = FakeViewPadding(bottom: keyboard);
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: controller.appTheme,
+          home: PosterWorkspace(
+            key: ValueKey('compact-$height-$keyboard'),
+            controller: controller,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      final groupMenu = find.byKey(const ValueKey('compact-editor-sections'));
+      expect(groupMenu.hitTestable(), findsOneWidget);
+      await tester.tap(groupMenu);
+      await tester.pumpAndSettle();
+      final lastSection = find.text('上下水印').hitTestable();
+      expect(lastSection, findsOneWidget);
+      await tester.tap(lastSection);
+      await tester.pumpAndSettle();
+      expect(find.byKey(const ValueKey('edit-top-watermark')), findsOneWidget);
+      expect(tester.getRect(find.byType(PosterCanvas)).height, greaterThan(0));
       expect(
         tester.takeException(),
         isNull,

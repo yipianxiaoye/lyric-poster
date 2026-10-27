@@ -9,6 +9,7 @@ import 'font_storage_io.dart'
     as storage;
 
 const defaultFontFamily = 'PosterSans';
+const appFontFamily = 'ChillRound';
 const chineseFontFallback = <String>[
   'PosterSans',
   'Microsoft YaHei',

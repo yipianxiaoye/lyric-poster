@@ -23,11 +23,11 @@
 - **固定打印版式**：标题、歌词字号支持数值输入（pt）；每页最多歌词行数可在 8–40 行之间调整，默认 24 行，再按纸张和实际字体自动换行、分页。
 - **完整歌词分页**：完整导出多页歌词；歌名、歌手和专辑信息只在第一页显示。顶部、底部水印可独立修改内容或隐藏。
 - **颜色和图片**：默认白色纸张；调色盘、20 个常用色和 HEX 输入；背景图可拖动、缩放，可加入图片贴纸。
-- **自定义字体**：内置 Noto Sans SC；支持导入 TTF/OTF，重启后保留，缺字回退到内置中文字体。
+- **自定义字体**：应用界面使用寒蝉全圆体；海报默认使用 Noto Sans SC，支持导入 TTF/OTF，重启后保留，缺字回退到内置中文字体。
 - **纸张和导出**：A3、A4、A5、A6、Letter、正方形及 16:9 等纸张与画幅；支持 300 DPI PNG 和多页 PDF。预览和导出共用版面与字体。
 - **历史和设置**：保存导入过的歌单和可继续编辑的海报草稿；离线打开已保存歌单；六种软件主题、常用默认设置，以及作者信息页。
 
-草稿会保存歌词、排版、字体、背景图、贴纸与图片位置。“历史 → 海报草稿”可继续编辑；“历史 → 导入歌单”可打开或联网更新歌单。导入自定义字体只影响海报，应用界面仍使用内置字体。
+草稿会保存歌词、排版、字体、背景图、贴纸与图片位置。“历史 → 海报草稿”可继续编辑；“历史 → 导入歌单”可打开或联网更新歌单。导入自定义字体只影响海报，应用界面使用内置的寒蝉全圆体。
 
 ## 本地开发
 
@@ -104,6 +104,6 @@ dart run scripts/check_playlist.dart <歌单ID>
 
 ## 许可证与内容
 
-原创代码采用 [MIT License](LICENSE)，作者为 [yipianxiaoye](https://github.com/yipianxiaoye)。第三方组件及字体的许可见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)；内置 Noto Sans SC 使用 [SIL Open Font License 1.1](assets/fonts/OFL.txt)。
+原创代码采用 [MIT License](LICENSE)，作者为 [yipianxiaoye](https://github.com/yipianxiaoye)。第三方组件及字体的许可见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)；内置寒蝉全圆体与 Noto Sans SC 均使用 SIL Open Font License 1.1，原始许可分别见 [ChillRoundF-OFL.txt](assets/fonts/ChillRoundF-OFL.txt) 和 [OFL.txt](assets/fonts/OFL.txt)。
 
 应用请求网易云公开元数据和歌词，不要求账号登录，不提供音频下载或 DRM 绕过功能；它是独立项目，与网易云音乐无隶属关系。外部接口可能变化，仍可手动输入和编辑歌词。本仓库的 MIT 许可不授予歌词、封面、第三方字体或商标的使用权，导入、打印及分享内容时请遵守相应版权和平台条款。
