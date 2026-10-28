@@ -942,7 +942,13 @@ class _PosterWorkspaceState extends State<PosterWorkspace> {
           appBar: AppBar(
             title: Row(
               children: [
-                Icon(Icons.auto_awesome, color: controller.accent),
+                Image.asset(
+                  'assets/icons/app_icon.png',
+                  width: 28,
+                  height: 28,
+                  filterQuality: FilterQuality.high,
+                  excludeFromSemantics: true,
+                ),
                 const SizedBox(width: 10),
                 const Text('词笺', style: TextStyle(fontWeight: FontWeight.w400)),
                 if (constraints.maxWidth >= 560) const SizedBox(width: 10),

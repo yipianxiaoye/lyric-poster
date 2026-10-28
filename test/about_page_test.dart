@@ -60,8 +60,31 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
+      final logo = find.byWidgetPredicate(
+        (widget) =>
+            widget is Image &&
+            widget.image is AssetImage &&
+            (widget.image as AssetImage).assetName ==
+                'assets/icons/app_icon.png',
+      );
+      expect(logo, findsOneWidget);
+      await tester.runAsync(() async {
+        await precacheImage(
+          const AssetImage('assets/icons/app_icon.png'),
+          tester.element(logo),
+        );
+      });
+      await tester.pump();
+      expect(
+        tester
+            .widget<RawImage>(
+              find.descendant(of: logo, matching: find.byType(RawImage)),
+            )
+            .image,
+        isNotNull,
+      );
       expect(find.text('词笺 · Lyric Poster'), findsOneWidget);
-      expect(find.text('版本 1.5.2+10'), findsOneWidget);
+      expect(find.text('版本 1.5.3+11'), findsOneWidget);
       expect(find.text('一片小叶'), findsOneWidget);
       expect(find.text('@yipianxiaoye'), findsOneWidget);
       expect(find.text('https://github.com/yipianxiaoye'), findsOneWidget);

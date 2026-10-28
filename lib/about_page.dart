@@ -47,10 +47,12 @@ class _AboutPageState extends State<AboutPage> {
                   children: [
                     Row(
                       children: [
-                        Icon(
-                          Icons.auto_awesome,
-                          size: 36,
-                          color: Theme.of(context).colorScheme.primary,
+                        Image.asset(
+                          'assets/icons/app_icon.png',
+                          width: 48,
+                          height: 48,
+                          filterQuality: FilterQuality.high,
+                          excludeFromSemantics: true,
                         ),
                         const SizedBox(width: 14),
                         const Expanded(
@@ -65,7 +67,7 @@ class _AboutPageState extends State<AboutPage> {
                                 ),
                               ),
                               SizedBox(height: 4),
-                              Text('版本 1.5.2+10'),
+                              Text('版本 1.5.3+11'),
                             ],
                           ),
                         ),

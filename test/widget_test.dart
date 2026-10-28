@@ -2,8 +2,12 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter/material.dart';
 import 'package:lyric_poster/main.dart';
 import 'package:lyric_poster/poster_document.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+  setUp(() => SharedPreferences.setMockInitialValues({}));
+
   test('网易云歌单链接可以提取歌单 ID', () {
     final client = NeteaseClient();
     addTearDown(client.close);
@@ -17,11 +21,35 @@ void main() {
 
   testWidgets('首页显示歌单导入入口', (tester) async {
     await tester.pumpWidget(const LyricPosterApp());
+    final logo = find.byWidgetPredicate(
+      (widget) =>
+          widget is Image &&
+          widget.image is AssetImage &&
+          (widget.image as AssetImage).assetName == 'assets/icons/app_icon.png',
+    );
+    expect(logo, findsOneWidget);
+    await tester.runAsync(() async {
+      await precacheImage(
+        const AssetImage('assets/icons/app_icon.png'),
+        tester.element(logo),
+      );
+    });
+    await tester.pump();
+    expect(
+      tester
+          .widget<RawImage>(
+            find.descendant(of: logo, matching: find.byType(RawImage)),
+          )
+          .image,
+      isNotNull,
+    );
     expect(find.text('导入网易云歌单'), findsOneWidget);
     expect(find.text('开始导入'), findsOneWidget);
+    await tester.pumpWidget(const SizedBox.shrink());
+    expect(tester.takeException(), isNull);
   });
 
-  test('长歌词可调整每页行数，预览不会只保留前九行', () {
+  test('长歌词可调整每页行数，预览不会只保留前九行', () async {
     final controller = PosterController();
     final track = Track(
       id: '',
@@ -33,12 +61,12 @@ void main() {
     );
     controller.selected = track;
     expect(controller.maxLinesPerPage, PosterController.defaultMaxLinesPerPage);
-    controller.setMaxLinesPerPage(12);
+    await controller.setMaxLinesPerPage(12);
     expect(controller.lyricPageCount, 3);
     expect(controller.currentLyricPageLines, hasLength(12));
     controller.setLyricPage(2);
     expect(controller.currentLyricPageLines, ['第 25 行']);
-    controller.setMaxLinesPerPage(24);
+    await controller.setMaxLinesPerPage(24);
     expect(controller.lyricPageCount, 2);
     controller.dispose();
   });

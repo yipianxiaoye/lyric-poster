@@ -1,0 +1,47 @@
+{
+  "sourceMotifBounds": [
+    283,
+    216,
+    973,
+    1038
+  ],
+  "sourceMaxRadius": 492.741,
+  "adaptiveScale": 0.659575,
+  "adaptiveCanvasPixels": 1080,
+  "safeCircleRadiusPixels": 330,
+  "targetMotifRadiusPixels": 325,
+  "renderedMotifRadiusPixelsAlpha32": 325.936,
+  "minimumSafeCircleClearancePixelsAlpha32": 4.064,
+  "minimumSafeCircleClearanceDpAlpha32": 0.406,
+  "backgroundRGB": [
+    236,
+    232,
+    253
+  ],
+  "sourceSHA256": "61e72b89ae844ad85b6f73f15b9b8b2d6caf42f663e9b99a17074789250b24b3",
+  "windowsIcoSizes": [
+    16,
+    20,
+    24,
+    32,
+    40,
+    48,
+    64,
+    128,
+    256
+  ],
+  "legacySizes": {
+    "mdpi": 48,
+    "hdpi": 72,
+    "xhdpi": 96,
+    "xxhdpi": 144,
+    "xxxhdpi": 192
+  },
+  "adaptiveLayerSizes": {
+    "mdpi": 108,
+    "hdpi": 162,
+    "xhdpi": 216,
+    "xxhdpi": 324,
+    "xxxhdpi": 432
+  }
+}
