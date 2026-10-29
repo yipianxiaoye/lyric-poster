@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:lyric_poster/about_page.dart';
+import 'package:lyric_poster/app_updates.dart';
 import 'package:lyric_poster/github_profile.dart';
 
 void main() {
@@ -48,6 +49,11 @@ void main() {
     tester.view.devicePixelRatio = 1;
     for (final width in [320.0, 390.0, 1280.0]) {
       tester.view.physicalSize = Size(width, 900);
+      final updates = UpdateController(
+        versionLoader: () async =>
+            const InstalledVersion(version: '9.8.7', buildNumber: '654'),
+      );
+      addTearDown(updates.dispose);
       await tester.pumpWidget(
         MaterialApp(
           home: Scaffold(
@@ -55,6 +61,7 @@ void main() {
               key: ValueKey(width),
               initialProfile: profile,
               profileLoader: () async => profile,
+              updates: updates,
             ),
           ),
         ),
@@ -84,7 +91,8 @@ void main() {
         isNotNull,
       );
       expect(find.text('词笺 · Lyric Poster'), findsOneWidget);
-      expect(find.text('版本 1.5.3+11'), findsOneWidget);
+      expect(find.text('版本 9.8.7+654'), findsOneWidget);
+      expect(find.text('检查更新'), findsOneWidget);
       expect(find.text('一片小叶'), findsOneWidget);
       expect(find.text('@yipianxiaoye'), findsOneWidget);
       expect(find.text('https://github.com/yipianxiaoye'), findsOneWidget);
@@ -105,5 +113,33 @@ void main() {
       expect(find.byTooltip('复制作者主页'), findsOneWidget);
       expect(tester.takeException(), isNull);
     }
+  });
+
+  testWidgets('版本读取失败时显示可重试状态，不停留在读取中', (tester) async {
+    final updates = UpdateController(
+      versionLoader: () async => throw StateError('Version unavailable'),
+    );
+    addTearDown(updates.dispose);
+    const profile = GitHubProfile(
+      login: 'yipianxiaoye',
+      id: 123964995,
+      profileUrl: 'https://github.com/yipianxiaoye',
+    );
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: AboutPage(
+            updates: updates,
+            initialProfile: profile,
+            profileLoader: () async => profile,
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('版本信息暂不可用'), findsOneWidget);
+    expect(find.text('正在读取版本…'), findsNothing);
+    expect(find.text('重新检查'), findsOneWidget);
+    expect(tester.takeException(), isNull);
   });
 }

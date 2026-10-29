@@ -17,6 +17,8 @@ import 'history_store.dart';
 import 'editor_fields.dart';
 import 'about_page.dart';
 import 'app_motion.dart';
+import 'app_updates.dart';
+import 'update_widgets.dart';
 
 export 'netease_client.dart';
 
@@ -38,7 +40,9 @@ const themePresets = <ThemePreset>[
 ];
 
 class LyricPosterApp extends StatefulWidget {
-  const LyricPosterApp({super.key});
+  const LyricPosterApp({super.key, this.updates});
+
+  final UpdateController? updates;
 
   @override
   State<LyricPosterApp> createState() => _LyricPosterAppState();
@@ -47,11 +51,13 @@ class LyricPosterApp extends StatefulWidget {
 class _LyricPosterAppState extends State<LyricPosterApp> {
   late final PosterController controller;
   late final AppLifecycleListener lifecycle;
+  late final UpdateController updates;
 
   @override
   void initState() {
     super.initState();
     controller = PosterController()..loadPreferences();
+    updates = widget.updates ?? UpdateController();
     lifecycle = AppLifecycleListener(
       onInactive: () => unawaited(controller.saveDraft()),
       onPause: () => unawaited(controller.saveDraft()),
@@ -66,6 +72,7 @@ class _LyricPosterAppState extends State<LyricPosterApp> {
   void dispose() {
     lifecycle.dispose();
     controller.dispose();
+    if (widget.updates == null) updates.dispose();
     super.dispose();
   }
 
@@ -76,7 +83,7 @@ class _LyricPosterAppState extends State<LyricPosterApp> {
       title: '词笺 · Lyric Poster',
       debugShowCheckedModeBanner: false,
       theme: controller.appTheme,
-      home: PosterWorkspace(controller: controller),
+      home: PosterWorkspace(controller: controller, updates: updates),
     ),
   );
 }
@@ -908,8 +915,9 @@ class PosterController extends ChangeNotifier {
 }
 
 class PosterWorkspace extends StatefulWidget {
-  const PosterWorkspace({required this.controller, super.key});
+  const PosterWorkspace({required this.controller, this.updates, super.key});
   final PosterController controller;
+  final UpdateController? updates;
 
   @override
   State<PosterWorkspace> createState() => _PosterWorkspaceState();
@@ -924,6 +932,22 @@ class _PosterWorkspaceState extends State<PosterWorkspace> {
   String editorSection = '排版与纸张';
   bool toolsVisible = true;
   static const editorSections = ['排版与纸张', '文字与字体', '背景与颜色', '图片与贴纸', '上下水印'];
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) unawaited(checkStartupUpdate());
+    });
+  }
+
+  Future<void> checkStartupUpdate() async {
+    final updates = widget.updates;
+    if (updates == null) return;
+    await updates.check();
+    if (!mounted || updates.error != null || !updates.updateAvailable) return;
+    await showAppUpdateDialog(context, updates.latestRelease!);
+  }
 
   @override
   void dispose() {
@@ -1234,7 +1258,7 @@ class _PosterWorkspaceState extends State<PosterWorkspace> {
     if (controller.currentTab == 2) return buildExport(context);
     if (controller.currentTab == 4) return buildSettings(context);
     if (controller.currentTab == 3) return buildHistory(context);
-    if (controller.currentTab == 5) return const AboutPage();
+    if (controller.currentTab == 5) return AboutPage(updates: widget.updates);
     return buildDesign(context);
   }
 

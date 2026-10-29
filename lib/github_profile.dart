@@ -47,7 +47,7 @@ Future<GitHubProfile> loadAuthorProfile({http.Client? client}) async {
           Uri.https('api.github.com', '/users/yipianxiaoye'),
           headers: const {
             'Accept': 'application/vnd.github+json',
-            'User-Agent': 'LyricPoster/1.5.3',
+            'User-Agent': 'LyricPoster',
           },
         )
         .timeout(const Duration(seconds: 8));

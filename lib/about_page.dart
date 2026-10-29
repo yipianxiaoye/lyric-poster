@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import 'app_updates.dart';
 import 'github_profile.dart';
+import 'update_widgets.dart';
 
 class AboutPage extends StatefulWidget {
   const AboutPage({
@@ -9,11 +11,15 @@ class AboutPage extends StatefulWidget {
     this.repositoryUrl = 'https://github.com/yipianxiaoye/lyric-poster',
     this.initialProfile = GitHubProfile.author,
     this.profileLoader,
+    this.updates,
+    this.updateLauncher,
   });
 
   final String repositoryUrl;
   final GitHubProfile initialProfile;
   final Future<GitHubProfile> Function()? profileLoader;
+  final UpdateController? updates;
+  final UpdateUrlLauncher? updateLauncher;
 
   @override
   State<AboutPage> createState() => _AboutPageState();
@@ -21,11 +27,30 @@ class AboutPage extends StatefulWidget {
 
 class _AboutPageState extends State<AboutPage> {
   late Future<GitHubProfile> profile;
+  late UpdateController updates;
 
   @override
   void initState() {
     super.initState();
     profile = (widget.profileLoader ?? loadAuthorProfile)();
+    updates = widget.updates ?? UpdateController();
+    updates.loadInstalledVersion();
+  }
+
+  @override
+  void didUpdateWidget(covariant AboutPage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.updates != widget.updates) {
+      if (oldWidget.updates == null) updates.dispose();
+      updates = widget.updates ?? UpdateController();
+      updates.loadInstalledVersion();
+    }
+  }
+
+  @override
+  void dispose() {
+    if (widget.updates == null) updates.dispose();
+    super.dispose();
   }
 
   @override
@@ -55,19 +80,28 @@ class _AboutPageState extends State<AboutPage> {
                           excludeFromSemantics: true,
                         ),
                         const SizedBox(width: 14),
-                        const Expanded(
+                        Expanded(
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text(
+                              const Text(
                                 '词笺 · Lyric Poster',
                                 style: TextStyle(
                                   fontSize: 20,
                                   fontWeight: FontWeight.w400,
                                 ),
                               ),
-                              SizedBox(height: 4),
-                              Text('版本 1.5.3+11'),
+                              const SizedBox(height: 4),
+                              ListenableBuilder(
+                                listenable: updates,
+                                builder: (context, _) => Text(
+                                  updates.installedVersion == null
+                                      ? updates.error == null
+                                            ? '正在读取版本…'
+                                            : '版本信息暂不可用'
+                                      : '版本 ${updates.installedVersion!.display}',
+                                ),
+                              ),
                             ],
                           ),
                         ),
@@ -82,6 +116,8 @@ class _AboutPageState extends State<AboutPage> {
                 ),
               ),
             ),
+            const SizedBox(height: 16),
+            UpdatePanel(controller: updates, launcher: widget.updateLauncher),
             const SizedBox(height: 16),
             FutureBuilder<GitHubProfile>(
               future: profile,

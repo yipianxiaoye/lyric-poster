@@ -14,6 +14,7 @@ import 'package:lyric_poster/history_storage_io.dart';
 import 'package:lyric_poster/main.dart';
 import 'package:lyric_poster/poster_document.dart';
 import 'package:lyric_poster/poster_renderer.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import 'package:path_provider_platform_interface/path_provider_platform_interface.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -52,7 +53,16 @@ void main() {
       ..addFont(rootBundle.load('fonts/MaterialIcons-Regular.otf'));
     await icons.load();
   });
-  setUp(() => SharedPreferences.setMockInitialValues({}));
+  setUp(() {
+    SharedPreferences.setMockInitialValues({});
+    PackageInfo.setMockInitialValues(
+      appName: '词笺',
+      packageName: 'com.lyricposter.lyric_poster',
+      version: '1.5.4',
+      buildNumber: '12',
+      buildSignature: '',
+    );
+  });
 
   PosterController sample({HistoryStore? history}) {
     final controller = PosterController(history: history);

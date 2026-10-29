@@ -2,6 +2,9 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter/material.dart';
 import 'package:lyric_poster/main.dart';
 import 'package:lyric_poster/poster_document.dart';
+import 'package:lyric_poster/app_updates.dart';
+import 'package:http/http.dart' as http;
+import 'package:http/testing.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
@@ -20,7 +23,13 @@ void main() {
   });
 
   testWidgets('首页显示歌单导入入口', (tester) async {
-    await tester.pumpWidget(const LyricPosterApp());
+    final updates = UpdateController(
+      client: MockClient((_) async => http.Response('', 404)),
+      versionLoader: () async =>
+          const InstalledVersion(version: '1.5.4', buildNumber: '12'),
+    );
+    addTearDown(updates.dispose);
+    await tester.pumpWidget(LyricPosterApp(updates: updates));
     final logo = find.byWidgetPredicate(
       (widget) =>
           widget is Image &&

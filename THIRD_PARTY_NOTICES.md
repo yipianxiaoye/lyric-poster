@@ -31,11 +31,16 @@
 | pdf | Apache-2.0 | [pub.dev](https://pub.dev/packages/pdf) |
 | printing | Apache-2.0 | [pub.dev](https://pub.dev/packages/printing) |
 | shared_preferences | BSD-3-Clause | [pub.dev](https://pub.dev/packages/shared_preferences) |
+| package_info_plus | BSD-3-Clause | [pub.dev](https://pub.dev/packages/package_info_plus) |
+| pub_semver | BSD-3-Clause | [pub.dev](https://pub.dev/packages/pub_semver) |
+| url_launcher | BSD-3-Clause | [pub.dev](https://pub.dev/packages/url_launcher) |
 
 实际依赖版本及传递依赖由 `pubspec.lock` 锁定。Flutter 构建生成的 `NOTICES` 资源收录依赖的许可信息；这些许可应随应用资源保留。Material Icons 随 Flutter 使用其上游许可。
 
 Windows 便携包包含 Microsoft Visual C++ Runtime DLL，版权归 Microsoft Corporation，按微软相应再分发条款提供。
 
 ## 内容与外部服务
+
+检查更新通过 GitHub 的公开 Releases API 获取正式版本信息；下载由系统浏览器打开相应发布页面或安装包链接。
 
 网易云音乐的名称、歌曲元数据、歌词和封面均归各自权利人所有。程序只请求公开元数据与歌词，不提供音频下载，不包含会员资源或 DRM 绕过功能。本仓库的 MIT 许可不授予歌词、封面、第三方字体或商标的使用权。导入及分享内容时，请遵守相应版权和平台条款。
