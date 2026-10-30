@@ -13,6 +13,7 @@ import 'poster_document.dart';
 import 'color_picker.dart';
 import 'font_library.dart';
 import 'poster_renderer.dart';
+import 'poster_export.dart' show posterPngFileName, posterPdfFileName;
 import 'history_store.dart';
 import 'editor_fields.dart';
 import 'about_page.dart';
@@ -988,11 +989,6 @@ class _PosterWorkspaceState extends State<PosterWorkspace> {
               ],
             ),
             actions: [
-              IconButton(
-                tooltip: '设置',
-                onPressed: () => controller.setTab(4),
-                icon: const Icon(Icons.settings_outlined),
-              ),
               if (controller.selected != null)
                 FilledButton.icon(
                   onPressed: () => controller.setTab(2),
@@ -1562,24 +1558,27 @@ class _PosterWorkspaceState extends State<PosterWorkspace> {
               ),
               const SizedBox(height: 20),
             ],
-            Row(
-              children: [
-                Expanded(
-                  child: feature(Icons.search, '搜索单曲', '直接搜索网易云歌曲，加入当前工作区。'),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: feature(Icons.touch_app, '画布直编', '点击标题、歌手或歌词即可编辑。'),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: feature(
-                    Icons.print_outlined,
-                    '适合打印',
-                    '多种纸张尺寸，导出高清 PNG 或 PDF。',
+            IntrinsicHeight(
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Expanded(
+                    child: feature(Icons.search, '搜索单曲', '直接搜索网易云歌曲，加入当前工作区。'),
                   ),
-                ),
-              ],
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: feature(Icons.touch_app, '画布直编', '点击标题、歌手或歌词即可编辑。'),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: feature(
+                      Icons.print_outlined,
+                      '适合打印',
+                      '多种纸张尺寸，导出高清 PNG 或 PDF。',
+                    ),
+                  ),
+                ],
+              ),
             ),
             const SizedBox(height: 24),
             OutlinedButton.icon(
@@ -2608,12 +2607,19 @@ class _PosterWorkspaceState extends State<PosterWorkspace> {
     exporting = true;
     toast(context, '正在生成 300 DPI 图片…');
     try {
+      final document = controller.document;
+      if (document == null) return;
       final page = controller.lyricPage;
+      final fileName = posterPngFileName(
+        document.title,
+        page: page,
+        pageCount: document.pages.length,
+      );
       final bytes = await capture();
       if (bytes == null) return;
       final path = await FilePicker.saveFile(
         dialogTitle: '保存歌词海报',
-        fileName: 'lyric-poster-page-${page + 1}.png',
+        fileName: fileName,
         bytes: bytes,
         mimeType: 'image/png',
       );
@@ -2632,8 +2638,10 @@ class _PosterWorkspaceState extends State<PosterWorkspace> {
     exporting = true;
     toast(context, '正在生成全部歌词页面…');
     try {
-      final pageSize = controller.document?.size;
-      if (pageSize == null) return;
+      final sourceDocument = controller.document;
+      if (sourceDocument == null) return;
+      final pageSize = sourceDocument.size;
+      final fileName = posterPdfFileName(sourceDocument.title);
       final pages = await capturePages();
       if (pages.isEmpty) return;
       final document = pw.Document();
@@ -2649,7 +2657,7 @@ class _PosterWorkspaceState extends State<PosterWorkspace> {
       final bytes = await document.save();
       final path = await FilePicker.saveFile(
         dialogTitle: '保存歌词海报 PDF',
-        fileName: 'lyric-poster.pdf',
+        fileName: fileName,
         bytes: bytes,
         mimeType: 'application/pdf',
       );
