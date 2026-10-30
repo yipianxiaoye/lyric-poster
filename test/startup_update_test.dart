@@ -112,6 +112,50 @@ void main() {
     await tester.pumpWidget(const SizedBox.shrink());
   });
 
+  testWidgets('启动时公共 API 额度耗尽仍能通过发布页发现新版', (tester) async {
+    var apiRequests = 0;
+    var webRequests = 0;
+    final updates = updater(
+      MockClient((request) async {
+        if (request.url.host == 'api.github.com') {
+          apiRequests++;
+          return http.Response(
+            '{"message":"API rate limit exceeded"}',
+            403,
+            headers: {'x-ratelimit-remaining': '0'},
+          );
+        }
+        webRequests++;
+        expect(request.url.host, 'github.com');
+        expect(request.url.path, '/yipianxiaoye/lyric-poster/releases/latest');
+        expect(request.followRedirects, isFalse);
+        return http.Response(
+          '',
+          302,
+          headers: {
+            'location':
+                'https://github.com/yipianxiaoye/lyric-poster/releases/tag/v1.6.0',
+          },
+        );
+      }),
+    );
+    final controller = PosterController();
+    addTearDown(updates.dispose);
+    addTearDown(controller.dispose);
+    await tester.pumpWidget(
+      MaterialApp(
+        home: PosterWorkspace(controller: controller, updates: updates),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(apiRequests, 1);
+    expect(webRequests, 1);
+    expect(updates.error, isNull);
+    expect(find.byType(AlertDialog), findsOneWidget);
+    expect(find.text('发现新版本 1.6.0'), findsOneWidget);
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
   testWidgets('退出页面后到达的新版响应不打开提示', (tester) async {
     final response = Completer<http.Response>();
     final updates = updater(MockClient((_) => response.future));

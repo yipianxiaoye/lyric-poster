@@ -6,6 +6,10 @@ import 'app_updates.dart';
 
 typedef UpdateUrlLauncher = Future<bool> Function(Uri url);
 
+final _latestDownloadPageUrl = Uri.parse(
+  'https://github.com/yipianxiaoye/lyric-poster/releases/latest',
+);
+
 Future<bool> _launchUpdateUrl(Uri url) =>
     launchUrl(url, mode: LaunchMode.externalApplication);
 
@@ -128,6 +132,16 @@ class UpdatePanel extends StatelessWidget {
                           : '重新检查',
                     ),
                   ),
+                  if (controller.error != null && !controller.checking)
+                    TextButton.icon(
+                      onPressed: () => openUpdateUrl(
+                        context,
+                        _latestDownloadPageUrl,
+                        launcher: launcher,
+                      ),
+                      icon: const Icon(Icons.open_in_new, size: 18),
+                      label: const Text('前往下载页'),
+                    ),
                   if (showUpdate)
                     FilledButton.icon(
                       onPressed: () => openUpdateUrl(

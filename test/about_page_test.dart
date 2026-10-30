@@ -93,6 +93,32 @@ void main() {
       expect(find.text('词笺 · Lyric Poster'), findsOneWidget);
       expect(find.text('版本 9.8.7+654'), findsOneWidget);
       expect(find.text('检查更新'), findsOneWidget);
+      final appCard = tester.getRect(
+        find.ancestor(
+          of: find.text('词笺 · Lyric Poster'),
+          matching: find.byType(Card),
+        ),
+      );
+      for (final title in ['软件更新', '作者', '开源与许可', '本机数据']) {
+        final card = tester.getRect(
+          find.ancestor(of: find.text(title), matching: find.byType(Card)),
+        );
+        expect(
+          card.left,
+          closeTo(appCard.left, .01),
+          reason: '$width px: $title 左边对齐',
+        );
+        expect(
+          card.right,
+          closeTo(appCard.right, .01),
+          reason: '$width px: $title 右边对齐',
+        );
+        expect(
+          card.width,
+          closeTo(appCard.width, .01),
+          reason: '$width px: $title 与应用卡片等宽',
+        );
+      }
       expect(find.text('一片小叶'), findsOneWidget);
       expect(find.text('@yipianxiaoye'), findsOneWidget);
       expect(find.text('https://github.com/yipianxiaoye'), findsOneWidget);

@@ -90,6 +90,7 @@ void main() {
     expect(find.text('当前已是最新版本'), findsOneWidget);
     expect(find.textContaining('上次检查：'), findsOneWidget);
     expect(find.text('下载新版'), findsNothing);
+    expect(find.text('前往下载页'), findsNothing);
     expect(tester.takeException(), isNull);
   });
 
@@ -127,28 +128,78 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('检查失败展示重试按钮，重试成功后清除错误', (tester) async {
+  testWidgets('检查失败仍可打开下载页，重试成功后清除错误入口', (tester) async {
     var requests = 0;
+    var recovered = false;
     final client = MockClient((_) async {
       requests++;
-      return requests == 1
-          ? http.Response('Unavailable', 503)
-          : _releaseResponse('1.5.4');
+      return recovered
+          ? _releaseResponse('1.5.4')
+          : http.Response('Unavailable', 503);
     });
     final updates = _controller(client);
     addTearDown(updates.dispose);
     addTearDown(client.close);
-    await tester.pumpWidget(_panelApp(updates));
+    Uri? opened;
+    await tester.pumpWidget(
+      _panelApp(
+        updates,
+        launcher: (url) async {
+          opened = url;
+          return true;
+        },
+      ),
+    );
     await tester.tap(find.text('检查更新'));
     await tester.pumpAndSettle();
     expect(updates.error, isNotNull);
     expect(find.text(updates.error!), findsOneWidget);
     expect(find.text('重新检查'), findsOneWidget);
+    expect(find.text('前往下载页'), findsOneWidget);
+    await tester.tap(find.text('前往下载页'));
+    await tester.pumpAndSettle();
+    expect(opened, Uri.parse('$_repository/releases/latest'));
+    recovered = true;
     await tester.tap(find.text('重新检查'));
     await tester.pumpAndSettle();
-    expect(requests, 2);
+    expect(requests, greaterThanOrEqualTo(2));
     expect(updates.error, isNull);
     expect(find.text('当前已是最新版本'), findsOneWidget);
+    expect(find.text('前往下载页'), findsNothing);
+  });
+
+  testWidgets('通过公开发布页检查到新版时，下载按钮打开该版本页面', (tester) async {
+    final client = MockClient((request) async {
+      if (request.url.host == 'api.github.com') {
+        return http.Response('API rate limit exceeded', 403);
+      }
+      return http.Response(
+        '',
+        302,
+        headers: {'location': '$_repository/releases/tag/v1.6.0'},
+      );
+    });
+    final updates = _controller(client);
+    addTearDown(updates.dispose);
+    addTearDown(client.close);
+    Uri? opened;
+    await tester.pumpWidget(
+      _panelApp(
+        updates,
+        launcher: (url) async {
+          opened = url;
+          return true;
+        },
+      ),
+    );
+    await tester.tap(find.text('检查更新'));
+    await tester.pumpAndSettle();
+    expect(find.text('发现新版本 1.6.0'), findsOneWidget);
+    expect(find.text('前往下载页'), findsNothing);
+    await tester.tap(find.text('下载新版'));
+    await tester.pumpAndSettle();
+    expect(opened, Uri.parse('$_repository/releases/tag/v1.6.0'));
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets('启动更新提示支持长说明、窄屏下载与稍后关闭', (tester) async {

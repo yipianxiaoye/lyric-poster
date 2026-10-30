@@ -112,6 +112,23 @@ class UpdateController extends ChangeNotifier {
     try {
       final installed = await _readInstalledVersion();
       if (_disposed) return;
+      final release = await _fetchLatest(installed);
+      if (_disposed) return;
+      latestRelease = release;
+      lastCheckedAt = DateTime.now();
+    } catch (failure) {
+      if (!_disposed) error = _failure(failure).message;
+    } finally {
+      checking = false;
+      _inFlight = null;
+      if (!_disposed) notifyListeners();
+      completion.complete();
+    }
+  }
+
+  Future<ReleaseInfo?> _fetchLatest(InstalledVersion installed) async {
+    late _UpdateFailure apiFailure;
+    try {
       final response = await _client
           .get(
             Uri.https(
@@ -125,33 +142,96 @@ class UpdateController extends ChangeNotifier {
             },
           )
           .timeout(timeout);
-      if (_disposed) return;
-      if (response.statusCode == 404) {
-        latestRelease = null;
-        error = '暂时没有可用的正式版本。';
-      } else if (response.statusCode == 403 || response.statusCode == 429) {
-        error = '检查更新过于频繁，请稍后重试。';
-      } else if (response.statusCode != 200) {
-        error = '暂时无法检查更新（HTTP ${response.statusCode}），请稍后重试。';
-      } else {
-        latestRelease = _readRelease(
-          jsonDecode(utf8.decode(response.bodyBytes)),
-        );
-        lastCheckedAt = DateTime.now();
+      if (_disposed) return null;
+      if (response.statusCode != 200) throw _httpFailure(response);
+      final release = _readRelease(jsonDecode(utf8.decode(response.bodyBytes)));
+      if (release == null) {
+        throw const _UpdateFailure('暂时没有可用的正式版本。', noRelease: true);
       }
-    } on TimeoutException {
-      if (!_disposed) error = '检查更新超时，请检查网络后重试。';
-    } on FormatException {
-      if (!_disposed) error = '更新信息无法识别，请稍后重试。';
-    } catch (_) {
-      if (!_disposed) error = '无法连接更新服务，请检查网络后重试。';
-    } finally {
-      checking = false;
-      _inFlight = null;
-      if (!_disposed) notifyListeners();
-      completion.complete();
+      return release;
+    } catch (failure) {
+      apiFailure = _failure(failure);
+    }
+    if (_disposed) return null;
+    // GitHub's public API quota is shared by everyone using the same proxy.
+    // The website's latest redirect provides an independent official route.
+    try {
+      return await _fetchLatestRedirect(installed);
+    } catch (failure) {
+      final webFailure = _failure(failure);
+      if (apiFailure.noRelease) {
+        throw webFailure.noRelease
+            ? apiFailure
+            : const _UpdateFailure('暂时无法确认最新正式版本，请检查网络后重试。');
+      }
+      throw apiFailure;
     }
   }
+
+  Future<ReleaseInfo> _fetchLatestRedirect(InstalledVersion installed) async {
+    final latestUrl = Uri.https(
+      'github.com',
+      '/yipianxiaoye/lyric-poster/releases/latest',
+    );
+    final request = http.Request('GET', latestUrl)
+      ..followRedirects = false
+      ..headers.addAll({
+        'Accept': 'text/html',
+        'User-Agent': 'LyricPoster/${installed.version}',
+      });
+    // Apply one deadline to both response headers and the response body stream.
+    final response = await _client
+        .send(request)
+        .then(http.Response.fromStream)
+        .timeout(timeout);
+    if (![301, 302, 303, 307, 308].contains(response.statusCode)) {
+      if (response.statusCode == 200) {
+        throw const FormatException('Missing latest release redirect');
+      }
+      throw _httpFailure(response);
+    }
+    final location = response.headers['location'];
+    if (location == null || location.isEmpty) {
+      throw const FormatException('Missing latest release location');
+    }
+    final pageUrl = latestUrl.resolve(location);
+    final tag = pageUrl.pathSegments.lastOrNull;
+    if (tag == null || !_releaseUrl(pageUrl, 'tag', tag)) {
+      throw const FormatException('Unexpected latest release location');
+    }
+    final version = _version(tag);
+    if (version.isPreRelease) {
+      throw const FormatException('Latest release is not stable');
+    }
+    return ReleaseInfo(
+      version: '${version.major}.${version.minor}.${version.patch}',
+      tagName: tag,
+      title: '词笺 $tag',
+      notes: '',
+      pageUrl: pageUrl,
+    );
+  }
+
+  static _UpdateFailure _httpFailure(http.Response response) {
+    if (response.statusCode == 404) {
+      return const _UpdateFailure('暂时没有可用的正式版本。', noRelease: true);
+    }
+    if (response.statusCode == 429 ||
+        (response.statusCode == 403 &&
+            response.headers['x-ratelimit-remaining']?.trim() == '0')) {
+      return const _UpdateFailure('GitHub 公共更新服务的请求额度暂时用尽，发布页检查也未成功，请稍后重试。');
+    }
+    return _UpdateFailure(
+      'GitHub 更新服务暂时不可用（HTTP ${response.statusCode}），请稍后重试。',
+    );
+  }
+
+  static _UpdateFailure _failure(Object failure) => switch (failure) {
+    _UpdateFailure() => failure,
+    TimeoutException() => const _UpdateFailure('检查更新超时，请检查网络后重试。'),
+    FormatException() => const _UpdateFailure('更新信息无法识别，请稍后重试。'),
+    _ => const _UpdateFailure('无法连接更新服务，请检查网络后重试。'),
+  };
 
   ReleaseInfo? _readRelease(Object? value) {
     if (value is! Map<String, dynamic> ||
@@ -246,4 +326,11 @@ class UpdateController extends ChangeNotifier {
     if (_ownsClient) _client.close();
     super.dispose();
   }
+}
+
+class _UpdateFailure implements Exception {
+  const _UpdateFailure(this.message, {this.noRelease = false});
+
+  final String message;
+  final bool noRelease;
 }

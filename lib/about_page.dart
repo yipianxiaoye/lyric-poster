@@ -60,7 +60,7 @@ class _AboutPageState extends State<AboutPage> {
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 760),
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Text('关于词笺', style: Theme.of(context).textTheme.headlineSmall),
             const SizedBox(height: 20),
