@@ -20,6 +20,19 @@ $projectRoot = Split-Path -Parent $PSScriptRoot
 if (-not $OutputDirectory) { $OutputDirectory = Join-Path $projectRoot 'dist' }
 $flutter = (Get-Command flutter -ErrorAction Stop).Source
 $dart = Join-Path (Split-Path -Parent $flutter) 'dart.bat'
+$innoCompiler = Get-Command ISCC.exe -ErrorAction SilentlyContinue
+if ($innoCompiler) {
+    $innoCompilerPath = $innoCompiler.Source
+} else {
+    $innoCompilerPath = @(
+        (Join-Path ${env:ProgramFiles(x86)} 'Inno Setup 6\ISCC.exe'),
+        (Join-Path $env:LOCALAPPDATA 'Programs\Inno Setup 6\ISCC.exe'),
+        (Join-Path $env:ProgramFiles 'Inno Setup 6\ISCC.exe')
+    ) | Where-Object { Test-Path -LiteralPath $_ } | Select-Object -First 1
+}
+if (-not $innoCompilerPath) {
+    throw 'Inno Setup 6 compiler is required to create the Windows installer. Install it for the current user and ensure ISCC.exe is on PATH.'
+}
 $vswhere = Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio\Installer\vswhere.exe'
 if (-not (Test-Path -LiteralPath $vswhere)) {
     throw 'Visual Studio C++ Build Tools are missing. Complete scripts\setup-windows.ps1 first.'
@@ -64,6 +77,7 @@ if ($LASTEXITCODE -ne 0) {
     throw 'Plugin symbolic links are unavailable. Enable Windows Developer Mode and retry from a normal PowerShell session.'
 }
 Write-Host "Flutter: $flutter"
+Write-Host "Inno Setup: $innoCompilerPath"
 Write-Host "Visual Studio: $vsPath"
 Write-Host "CMake: $cmake"
 Write-Host "Build directory: $staging"
@@ -124,6 +138,7 @@ try {
     }
     Copy-Item -LiteralPath (Join-Path $projectRoot 'assets\fonts\OFL.txt') -Destination (Join-Path $bundle 'FONT-LICENSE.txt')
     Copy-Item -LiteralPath (Join-Path $projectRoot 'assets\fonts\ChillRoundF-OFL.txt') -Destination (Join-Path $bundle 'CHILLROUND-FONT-LICENSE.txt')
+    Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'ChineseSimplified-LICENSE.txt') -Destination (Join-Path $bundle 'INNO-CHINESE-LICENSE.txt')
 
     @(
         'Lyric Poster / Windows x64 portable edition',
@@ -136,9 +151,22 @@ try {
     ) | Set-Content -LiteralPath (Join-Path $bundle 'README.txt') -Encoding UTF8
     $zip = Join-Path $OutputDirectory "$bundleName.zip"
     Compress-Archive -LiteralPath $bundle -DestinationPath $zip -CompressionLevel Optimal
+    $installerName = "LyricPoster-$version-windows-x64-setup"
+    $installerScript = Join-Path $PSScriptRoot 'windows-installer.iss'
+    & $innoCompilerPath `
+        "/DAppVersion=$version" `
+        "/DSourceDir=$bundle" `
+        "/DOutputDir=$([IO.Path]::GetFullPath($OutputDirectory))" `
+        "/DOutputName=$installerName" `
+        $installerScript
+    if ($LASTEXITCODE -ne 0) { throw 'Inno Setup failed to create the Windows installer.' }
+    $installer = Join-Path $OutputDirectory "$installerName.exe"
+    if (-not (Test-Path -LiteralPath $installer)) { throw 'The Windows installer was not produced.' }
     Get-FileHash -Algorithm SHA256 -LiteralPath $zip | Format-List
+    Get-FileHash -Algorithm SHA256 -LiteralPath $installer | Format-List
     Write-Host "Portable application: $(Join-Path $bundle 'lyric_poster.exe')"
-    Write-Host "Windows distribution: $zip"
+    Write-Host "Windows portable distribution: $zip"
+    Write-Host "Windows installer: $installer"
     Write-Host "Build log: $logPath"
     Write-Host "Preserved build directory: $staging"
 } finally { Stop-Transcript | Out-Null }

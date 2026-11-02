@@ -25,10 +25,12 @@ http.Response _releaseResponse(
       'body': notes,
       'assets': [
         {
-          'name': 'LyricPoster-$version-windows-x64.zip',
+          'name': 'LyricPoster-$version-windows-x64-setup.exe',
           'state': 'uploaded',
+          'digest':
+              'sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
           'browser_download_url':
-              '$_repository/releases/download/v$version/LyricPoster-$version-windows-x64.zip',
+              '$_repository/releases/download/v$version/LyricPoster-$version-windows-x64-setup.exe',
         },
       ],
     }),
@@ -43,14 +45,21 @@ UpdateController _controller(http.Client client) => UpdateController(
   platform: TargetPlatform.windows,
 );
 
-Widget _panelApp(UpdateController controller, {UpdateUrlLauncher? launcher}) =>
-    MaterialApp(
-      home: Scaffold(
-        body: SingleChildScrollView(
-          child: UpdatePanel(controller: controller, launcher: launcher),
-        ),
+Widget _panelApp(
+  UpdateController controller, {
+  UpdateUrlLauncher? launcher,
+  UpdateActionHandler? downloader,
+}) => MaterialApp(
+  home: Scaffold(
+    body: SingleChildScrollView(
+      child: UpdatePanel(
+        controller: controller,
+        launcher: launcher,
+        downloader: downloader,
       ),
-    );
+    ),
+  ),
+);
 
 ReleaseInfo _release({String? notes}) => ReleaseInfo(
   version: '1.6.0',
@@ -59,8 +68,10 @@ ReleaseInfo _release({String? notes}) => ReleaseInfo(
   notes: notes ?? '新增检查更新功能',
   pageUrl: Uri.parse('$_repository/releases/tag/v1.6.0'),
   downloadUrl: Uri.parse(
-    '$_repository/releases/download/v1.6.0/LyricPoster-1.6.0-windows-x64.zip',
+    '$_repository/releases/download/v1.6.0/LyricPoster-1.6.0-windows-x64-setup.exe',
   ),
+  downloadSha256:
+      'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
 );
 
 void main() {
@@ -104,6 +115,7 @@ void main() {
     addTearDown(updates.dispose);
     addTearDown(client.close);
     final opened = <Uri>[];
+    final downloads = <UpdateDownloadSource>[];
     await tester.pumpWidget(
       _panelApp(
         updates,
@@ -111,20 +123,24 @@ void main() {
           opened.add(url);
           return true;
         },
+        downloader: (context, release, source) async => downloads.add(source),
       ),
     );
     await tester.tap(find.text('检查更新'));
     await tester.pumpAndSettle();
     expect(find.text('发现新版本 1.6.0'), findsOneWidget);
     expect(find.text('更新内容'), findsOneWidget);
-    await tester.ensureVisible(find.text('下载新版'));
-    await tester.tap(find.text('下载新版'));
+    await tester.ensureVisible(find.text('GitHub 下载'));
+    await tester.tap(find.text('GitHub 下载'));
     await tester.pumpAndSettle();
+    expect(downloads, [UpdateDownloadSource.github]);
     await tester.ensureVisible(find.text('查看发布说明'));
     await tester.tap(find.text('查看发布说明'));
     await tester.pumpAndSettle();
-    expect(opened.first.path, endsWith('LyricPoster-1.6.0-windows-x64.zip'));
-    expect(opened.last.path, '/yipianxiaoye/lyric-poster/releases/tag/v1.6.0');
+    expect(
+      opened.single.path,
+      '/yipianxiaoye/lyric-poster/releases/tag/v1.6.0',
+    );
     expect(tester.takeException(), isNull);
   });
 
@@ -195,8 +211,9 @@ void main() {
     await tester.tap(find.text('检查更新'));
     await tester.pumpAndSettle();
     expect(find.text('发现新版本 1.6.0'), findsOneWidget);
-    expect(find.text('前往下载页'), findsNothing);
-    await tester.tap(find.text('下载新版'));
+    expect(find.text('更新说明暂不可用，请前往发布页查看。'), findsOneWidget);
+    expect(find.text('前往发布页'), findsOneWidget);
+    await tester.tap(find.text('前往发布页'));
     await tester.pumpAndSettle();
     expect(opened, Uri.parse('$_repository/releases/tag/v1.6.0'));
     expect(tester.takeException(), isNull);
@@ -209,6 +226,7 @@ void main() {
     addTearDown(tester.view.resetDevicePixelRatio);
     final release = _release(notes: List.filled(80, '这是一项更新内容。').join('\n'));
     Uri? opened;
+    final downloads = <UpdateDownloadSource>[];
     await tester.pumpWidget(
       MaterialApp(
         home: Scaffold(
@@ -217,6 +235,8 @@ void main() {
               onPressed: () => showAppUpdateDialog(
                 context,
                 release,
+                downloader: (context, release, source) async =>
+                    downloads.add(source),
                 launcher: (url) async {
                   opened = url;
                   return true;
@@ -231,12 +251,71 @@ void main() {
     await tester.tap(find.text('提示更新'));
     await tester.pumpAndSettle();
     expect(find.text('发现新版本 1.6.0'), findsOneWidget);
-    await tester.tap(find.text('下载新版'));
+    await tester.tap(find.text('镜像下载（第三方）'));
     await tester.pumpAndSettle();
-    expect(opened, release.downloadUrl);
+    expect(downloads, [UpdateDownloadSource.mirror]);
+    expect(opened, isNull);
     await tester.tap(find.text('稍后'));
     await tester.pumpAndSettle();
     expect(find.byType(AlertDialog), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('启动更新提示在说明不可用时提供发布页入口', (tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: Builder(
+            builder: (context) => TextButton(
+              onPressed: () =>
+                  showAppUpdateDialog(context, _release(notes: '')),
+              child: const Text('提示更新'),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.tap(find.text('提示更新'));
+    await tester.pumpAndSettle();
+    expect(find.text('更新说明暂不可用，请前往发布页查看。'), findsOneWidget);
+    expect(find.text('前往发布页'), findsOneWidget);
+    expect(find.text('镜像下载（第三方）'), findsOneWidget);
+  });
+
+  testWidgets('保存草稿失败时不启动更新，重试成功后才继续', (tester) async {
+    var shouldFail = true;
+    var downloads = 0;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: Builder(
+            builder: (context) => TextButton(
+              onPressed: () => showAppUpdateDialog(
+                context,
+                _release(),
+                beforeInstall: () async {
+                  if (shouldFail) throw StateError('草稿保存失败');
+                },
+                downloader: (_, _, _) async => downloads++,
+              ),
+              child: const Text('提示更新'),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.tap(find.text('提示更新'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('GitHub 下载'));
+    await tester.pumpAndSettle();
+    expect(downloads, 0);
+    expect(find.textContaining('草稿保存失败'), findsOneWidget);
+    await tester.tap(find.text('关闭'));
+    await tester.pumpAndSettle();
+    shouldFail = false;
+    await tester.tap(find.text('GitHub 下载'));
+    await tester.pumpAndSettle();
+    expect(downloads, 1);
     expect(tester.takeException(), isNull);
   });
 

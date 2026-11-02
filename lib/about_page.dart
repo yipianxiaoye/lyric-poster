@@ -13,6 +13,7 @@ class AboutPage extends StatefulWidget {
     this.profileLoader,
     this.updates,
     this.updateLauncher,
+    this.beforeInstall,
   });
 
   final String repositoryUrl;
@@ -20,6 +21,7 @@ class AboutPage extends StatefulWidget {
   final Future<GitHubProfile> Function()? profileLoader;
   final UpdateController? updates;
   final UpdateUrlLauncher? updateLauncher;
+  final Future<void> Function()? beforeInstall;
 
   @override
   State<AboutPage> createState() => _AboutPageState();
@@ -109,7 +111,7 @@ class _AboutPageState extends State<AboutPage> {
                     ),
                     const SizedBox(height: 18),
                     const Text(
-                      '把喜欢的歌词做成可打印的海报。使用 Flutter 构建，支持手机和电脑上的歌曲搜索、歌单导入、海报编辑与多页导出。',
+                      '把喜欢的歌词做成可打印的海报。使用 Flutter 构建，支持手机和电脑上的歌曲搜索、歌单导入、海报编辑、多页导出与应用内更新。',
                       style: TextStyle(height: 1.6),
                     ),
                   ],
@@ -117,7 +119,11 @@ class _AboutPageState extends State<AboutPage> {
               ),
             ),
             const SizedBox(height: 16),
-            UpdatePanel(controller: updates, launcher: widget.updateLauncher),
+            UpdatePanel(
+              controller: updates,
+              launcher: widget.updateLauncher,
+              beforeInstall: widget.beforeInstall,
+            ),
             const SizedBox(height: 16),
             FutureBuilder<GitHubProfile>(
               future: profile,

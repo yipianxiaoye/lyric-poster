@@ -26,6 +26,8 @@ Map<String, Object?> release({
 Map<String, Object?> asset(String name, {String tag = 'v1.5.4'}) => {
   'name': name,
   'state': 'uploaded',
+  'digest':
+      'sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
   'browser_download_url':
       'https://github.com/yipianxiaoye/lyric-poster/releases/download/$tag/$name',
 };
@@ -147,7 +149,7 @@ void main() {
   }
 
   for (final entry in [
-    (TargetPlatform.windows, 'LyricPoster-1.5.4-windows-x64.zip'),
+    (TargetPlatform.windows, 'LyricPoster-1.5.4-windows-x64-setup.exe'),
     (TargetPlatform.android, 'LyricPoster-1.5.4-android-universal.apk'),
   ]) {
     test('选择平台对应的正式安装包 ${entry.$1}', () async {
@@ -156,7 +158,7 @@ void main() {
           (_) async => response(
             release(
               assets: [
-                asset('LyricPoster-1.5.4-windows-x64.zip'),
+                asset('LyricPoster-1.5.4-windows-x64-setup.exe'),
                 asset('LyricPoster-1.5.4-android-universal.apk'),
                 asset('SHA256SUMS.txt'),
               ],
@@ -168,6 +170,10 @@ void main() {
       addTearDown(updates.dispose);
       await updates.check();
       expect(updates.latestRelease!.downloadUrl!.pathSegments.last, entry.$2);
+      expect(
+        updates.latestRelease!.downloadSha256,
+        'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+      );
     });
   }
 

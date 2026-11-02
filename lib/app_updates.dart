@@ -30,11 +30,13 @@ class ReleaseInfo {
     required this.notes,
     required this.pageUrl,
     this.downloadUrl,
+    this.downloadSha256,
   });
 
   final String version, tagName, title, notes;
   final Uri pageUrl;
   final Uri? downloadUrl;
+  final String? downloadSha256;
 }
 
 /// Checks the public stable release without authentication or local user data.
@@ -253,11 +255,12 @@ class UpdateController extends ChangeNotifier {
       throw const FormatException('Unexpected release URL');
     }
     final assetName = switch (_platform) {
-      TargetPlatform.windows => 'LyricPoster-$version-windows-x64.zip',
+      TargetPlatform.windows => 'LyricPoster-$version-windows-x64-setup.exe',
       TargetPlatform.android => 'LyricPoster-$version-android-universal.apk',
       _ => null,
     };
     Uri? downloadUrl;
+    String? downloadSha256;
     final assets = value['assets'];
     if (assets is! List) throw const FormatException('Invalid release assets');
     if (assetName != null) {
@@ -271,6 +274,11 @@ class UpdateController extends ChangeNotifier {
         final uri = Uri.tryParse(asset['browser_download_url'] as String);
         if (_releaseUrl(uri, 'download', tag, assetName)) {
           downloadUrl = uri;
+          final digest = asset['digest'];
+          if (digest is String &&
+              RegExp(r'^sha256:[0-9a-fA-F]{64}$').hasMatch(digest)) {
+            downloadSha256 = digest.substring('sha256:'.length).toLowerCase();
+          }
           break;
         }
       }
@@ -284,6 +292,7 @@ class UpdateController extends ChangeNotifier {
       notes: value['body'] is String ? value['body'] as String : '',
       pageUrl: pageUrl!,
       downloadUrl: downloadUrl,
+      downloadSha256: downloadSha256,
     );
   }
 

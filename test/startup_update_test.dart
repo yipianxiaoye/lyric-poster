@@ -49,10 +49,13 @@ void main() {
     await tester.pumpAndSettle();
     expect(requests, 1);
     expect(find.byType(AlertDialog), findsOneWidget);
+    expect(find.text('改进了歌词排版。'), findsOneWidget);
     Navigator.of(tester.element(find.byType(AlertDialog))).pop();
     await tester.pumpAndSettle();
     controller.setTab(4);
     await tester.pumpAndSettle();
+    expect(find.text('软件更新'), findsOneWidget);
+    expect(find.text('改进了歌词排版。'), findsOneWidget);
     controller.setTab(0);
     await tester.pumpAndSettle();
     expect(requests, 1);

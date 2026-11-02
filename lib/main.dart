@@ -947,7 +947,18 @@ class _PosterWorkspaceState extends State<PosterWorkspace> {
     if (updates == null) return;
     await updates.check();
     if (!mounted || updates.error != null || !updates.updateAvailable) return;
-    await showAppUpdateDialog(context, updates.latestRelease!);
+    await showAppUpdateDialog(
+      context,
+      updates.latestRelease!,
+      beforeInstall: saveDraftBeforeUpdate,
+    );
+  }
+
+  Future<void> saveDraftBeforeUpdate() async {
+    await controller.saveDraft();
+    if (controller.selected != null && controller.draftDirty) {
+      throw StateError(controller.historyError ?? '草稿尚未保存，请重试。');
+    }
   }
 
   @override
@@ -1254,7 +1265,12 @@ class _PosterWorkspaceState extends State<PosterWorkspace> {
     if (controller.currentTab == 2) return buildExport(context);
     if (controller.currentTab == 4) return buildSettings(context);
     if (controller.currentTab == 3) return buildHistory(context);
-    if (controller.currentTab == 5) return AboutPage(updates: widget.updates);
+    if (controller.currentTab == 5) {
+      return AboutPage(
+        updates: widget.updates,
+        beforeInstall: saveDraftBeforeUpdate,
+      );
+    }
     return buildDesign(context);
   }
 
@@ -2423,6 +2439,13 @@ class _PosterWorkspaceState extends State<PosterWorkspace> {
               style: TextStyle(color: Colors.white60),
             ),
             const SizedBox(height: 22),
+            if (widget.updates != null) ...[
+              UpdatePanel(
+                controller: widget.updates!,
+                beforeInstall: saveDraftBeforeUpdate,
+              ),
+              const SizedBox(height: 14),
+            ],
             Card(
               child: Padding(
                 padding: const EdgeInsets.all(22),

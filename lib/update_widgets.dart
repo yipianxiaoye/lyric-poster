@@ -1,10 +1,21 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import 'app_updates.dart';
+import 'update_download.dart';
+
+export 'update_download.dart' show UpdateDownloadSource;
 
 typedef UpdateUrlLauncher = Future<bool> Function(Uri url);
+typedef UpdateActionHandler =
+    Future<void> Function(
+      BuildContext context,
+      ReleaseInfo release,
+      UpdateDownloadSource source,
+    );
 
 final _latestDownloadPageUrl = Uri.parse(
   'https://github.com/yipianxiaoye/lyric-poster/releases/latest',
@@ -68,10 +79,18 @@ Future<void> copyUpdateLink(BuildContext context, Uri url) async {
 }
 
 class UpdatePanel extends StatelessWidget {
-  const UpdatePanel({required this.controller, this.launcher, super.key});
+  const UpdatePanel({
+    required this.controller,
+    this.launcher,
+    this.downloader,
+    this.beforeInstall,
+    super.key,
+  });
 
   final UpdateController controller;
   final UpdateUrlLauncher? launcher;
+  final UpdateActionHandler? downloader;
+  final Future<void> Function()? beforeInstall;
 
   @override
   Widget build(BuildContext context) => ListenableBuilder(
@@ -142,15 +161,39 @@ class UpdatePanel extends StatelessWidget {
                       icon: const Icon(Icons.open_in_new, size: 18),
                       label: const Text('前往下载页'),
                     ),
-                  if (showUpdate)
+                  if (showUpdate && release!.downloadSha256 != null) ...[
                     FilledButton.icon(
-                      onPressed: () => openUpdateUrl(
+                      onPressed: () => _startUpdateDownload(
                         context,
-                        release!.downloadUrl ?? release.pageUrl,
-                        launcher: launcher,
+                        release,
+                        UpdateDownloadSource.github,
+                        downloader: downloader,
+                        beforeInstall: beforeInstall,
                       ),
                       icon: const Icon(Icons.download_outlined, size: 18),
-                      label: const Text('下载新版'),
+                      label: const Text('GitHub 下载'),
+                    ),
+                    OutlinedButton.icon(
+                      onPressed: () => _startUpdateDownload(
+                        context,
+                        release,
+                        UpdateDownloadSource.mirror,
+                        downloader: downloader,
+                        beforeInstall: beforeInstall,
+                      ),
+                      icon: const Icon(Icons.cloud_download_outlined, size: 18),
+                      label: const Text('镜像下载（第三方）'),
+                    ),
+                  ],
+                  if (showUpdate)
+                    TextButton.icon(
+                      onPressed: () => openUpdateUrl(
+                        context,
+                        release!.pageUrl,
+                        launcher: launcher,
+                      ),
+                      icon: const Icon(Icons.open_in_new, size: 18),
+                      label: const Text('前往发布页'),
                     ),
                   if (release != null)
                     TextButton(
@@ -163,12 +206,12 @@ class UpdatePanel extends StatelessWidget {
                     ),
                 ],
               ),
-              if (showUpdate && release!.notes.trim().isNotEmpty) ...[
+              if (showUpdate) ...[
                 const SizedBox(height: 12),
                 Text(
-                  release.notes,
-                  maxLines: 8,
-                  overflow: TextOverflow.ellipsis,
+                  release!.notes.trim().isEmpty
+                      ? '更新说明暂不可用，请前往发布页查看。'
+                      : release.notes,
                   style: const TextStyle(height: 1.5),
                 ),
               ],
@@ -191,6 +234,8 @@ Future<void> showAppUpdateDialog(
   BuildContext context,
   ReleaseInfo release, {
   UpdateUrlLauncher? launcher,
+  UpdateActionHandler? downloader,
+  Future<void> Function()? beforeInstall,
 }) => showDialog<void>(
   context: context,
   builder: (dialogContext) => AlertDialog(
@@ -206,6 +251,9 @@ Future<void> showAppUpdateDialog(
           if (release.notes.trim().isNotEmpty) ...[
             const SizedBox(height: 14),
             Text(release.notes, style: const TextStyle(height: 1.5)),
+          ] else ...[
+            const SizedBox(height: 14),
+            const Text('更新说明暂不可用，请前往发布页查看。'),
           ],
           const SizedBox(height: 8),
           TextButton(
@@ -224,15 +272,136 @@ Future<void> showAppUpdateDialog(
         onPressed: () => Navigator.pop(dialogContext),
         child: const Text('稍后'),
       ),
-      FilledButton.icon(
-        onPressed: () => openUpdateUrl(
-          dialogContext,
-          release.downloadUrl ?? release.pageUrl,
-          launcher: launcher,
+      if (release.downloadUrl != null && release.downloadSha256 != null)
+        FilledButton.icon(
+          onPressed: () => _startUpdateDownload(
+            dialogContext,
+            release,
+            UpdateDownloadSource.github,
+            downloader: downloader,
+            beforeInstall: beforeInstall,
+          ),
+          icon: const Icon(Icons.download_outlined, size: 18),
+          label: const Text('GitHub 下载'),
         ),
-        icon: const Icon(Icons.download_outlined, size: 18),
-        label: const Text('下载新版'),
+      if (release.downloadUrl != null && release.downloadSha256 != null)
+        OutlinedButton.icon(
+          onPressed: () => _startUpdateDownload(
+            dialogContext,
+            release,
+            UpdateDownloadSource.mirror,
+            downloader: downloader,
+            beforeInstall: beforeInstall,
+          ),
+          icon: const Icon(Icons.cloud_download_outlined, size: 18),
+          label: const Text('镜像下载（第三方）'),
+        ),
+      TextButton.icon(
+        onPressed: () =>
+            openUpdateUrl(dialogContext, release.pageUrl, launcher: launcher),
+        icon: const Icon(Icons.open_in_new, size: 18),
+        label: const Text('前往发布页'),
       ),
     ],
   ),
 );
+
+Future<void> _startUpdateDownload(
+  BuildContext context,
+  ReleaseInfo release,
+  UpdateDownloadSource source, {
+  UpdateActionHandler? downloader,
+  Future<void> Function()? beforeInstall,
+}) async {
+  final progress = ValueNotifier<UpdateDownloadProgress>(
+    const UpdateDownloadProgress(0, null),
+  );
+  unawaited(
+    showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) => PopScope(
+        canPop: false,
+        child: AlertDialog(
+          title: const Text('正在下载更新'),
+          content: SizedBox(
+            width: 360,
+            child: ValueListenableBuilder<UpdateDownloadProgress>(
+              valueListenable: progress,
+              builder: (context, value, _) => Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    source == UpdateDownloadSource.github ? 'GitHub' : '镜像源',
+                  ),
+                  const SizedBox(height: 12),
+                  LinearProgressIndicator(value: value.fraction),
+                  const SizedBox(height: 8),
+                  Text(
+                    _formatDownloadBytes(value.receivedBytes, value.totalBytes),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    ),
+  );
+  try {
+    await beforeInstall?.call();
+    if (!context.mounted) return;
+    if (downloader != null) {
+      await downloader(context, release, source);
+      if (context.mounted) Navigator.of(context, rootNavigator: true).pop();
+      return;
+    }
+    final result = await downloadAndInstallUpdate(
+      release,
+      source,
+      onProgress: (value) => progress.value = value,
+    );
+    if (!context.mounted) return;
+    Navigator.of(context, rootNavigator: true).pop();
+    ScaffoldMessenger.maybeOf(
+      context,
+    )?.showSnackBar(SnackBar(content: Text(result.message)));
+  } catch (failure) {
+    if (!context.mounted) return;
+    Navigator.of(context, rootNavigator: true).pop();
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('更新未能启动'),
+        content: Text(failure.toString()),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('关闭'),
+          ),
+          FilledButton.icon(
+            onPressed: () => openUpdateUrl(
+              dialogContext,
+              release.pageUrl,
+              launcher: _launchUpdateUrl,
+            ),
+            icon: const Icon(Icons.open_in_new, size: 18),
+            label: const Text('前往发布页'),
+          ),
+        ],
+      ),
+    );
+  } finally {
+    progress.dispose();
+  }
+}
+
+String _formatDownloadBytes(int received, int? total) {
+  String format(int value) => value < 1024 * 1024
+      ? '${(value / 1024).toStringAsFixed(0)} KB'
+      : '${(value / (1024 * 1024)).toStringAsFixed(1)} MB';
+  return total == null
+      ? '已下载 ${format(received)}'
+      : '${format(received)} / ${format(total)}';
+}
