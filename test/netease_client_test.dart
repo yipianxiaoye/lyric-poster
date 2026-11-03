@@ -259,4 +259,24 @@ void main() {
     expect(results.single.id, '7788');
     expect(results.single.title, '歌曲 7788');
   });
+
+  test('一次请求返回原文和按时间对齐的译文，仍兼容仅有译文的响应', () async {
+    final client = NeteaseClient(
+      client: MockClient((request) async {
+        expect(request.url.queryParameters['tv'], '-1');
+        return jsonResponse({
+          'code': 200,
+          'lrc': {'lyric': '[00:01.00]Hello\n[00:02.00]World'},
+          'tlyric': {'lyric': '[00:02.00]世界'},
+        });
+      }),
+    );
+    addTearDown(client.close);
+    final result = await client.fetchLyricsWithTranslation('12345');
+    expect(result.lyrics, 'Hello\nWorld');
+    expect(result.translation, '\n世界');
+    final fallback = parseLyrics('', '[00:01.00]只有译文');
+    expect(fallback.lyrics, '只有译文');
+    expect(fallback.translation, isEmpty);
+  });
 }

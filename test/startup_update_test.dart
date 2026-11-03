@@ -54,6 +54,10 @@ void main() {
     await tester.pumpAndSettle();
     controller.setTab(4);
     await tester.pumpAndSettle();
+    expect(find.text('软件更新'), findsNothing);
+    expect(find.text('改进了歌词排版。'), findsNothing);
+    controller.setTab(5);
+    await tester.pumpAndSettle();
     expect(find.text('软件更新'), findsOneWidget);
     expect(find.text('改进了歌词排版。'), findsOneWidget);
     controller.setTab(0);

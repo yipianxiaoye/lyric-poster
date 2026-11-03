@@ -111,7 +111,7 @@ class _AboutPageState extends State<AboutPage> {
                     ),
                     const SizedBox(height: 18),
                     const Text(
-                      '把喜欢的歌词做成可打印的海报。使用 Flutter 构建，支持手机和电脑上的歌曲搜索、歌单导入、海报编辑、多页导出与应用内更新。',
+                      '把喜欢的歌词做成可打印的海报。支持歌曲搜索、网易云歌单导入、双语歌词排版、海报编辑、多页导出与应用内更新。译文可单独设置字体和字号。',
                       style: TextStyle(height: 1.6),
                     ),
                   ],
@@ -166,7 +166,7 @@ class _AboutPageState extends State<AboutPage> {
                     sectionTitle('本机数据'),
                     const SizedBox(height: 12),
                     const Text(
-                      '歌单历史和海报草稿保存在应用数据目录的 history 文件夹；导入的字体保存在 fonts 文件夹。草稿包含歌词、背景图和贴纸，可从“历史”继续编辑。',
+                      '歌单历史和海报草稿保存在应用数据目录的 history 文件夹；导入的字体保存在 fonts 文件夹。草稿包含原文、译文、各自的排版设置、背景图和贴纸，可从“历史”继续编辑。',
                       style: TextStyle(height: 1.6),
                     ),
                     const SizedBox(height: 8),

@@ -3,6 +3,10 @@ import 'dart:convert';
 
 import 'package:http/http.dart' as http;
 
+import 'lyrics.dart';
+
+export 'lyrics.dart' show LyricsResult, parseLyrics;
+
 class Track {
   Track({
     required this.id,
@@ -11,10 +15,13 @@ class Track {
     required this.album,
     required this.coverUrl,
     this.lyrics = '',
+    this.translation = '',
+    this.translationFetched = false,
     this.durationMs = 0,
   });
   final String id;
-  String title, artist, album, coverUrl, lyrics;
+  String title, artist, album, coverUrl, lyrics, translation;
+  bool translationFetched;
   int durationMs;
 }
 
@@ -101,18 +108,22 @@ class NeteaseClient {
     return tracks;
   }
 
-  Future<String> fetchLyrics(String trackId) async {
+  Future<String> fetchLyrics(String trackId) async =>
+      (await fetchLyricsWithTranslation(trackId)).lyrics;
+
+  Future<LyricsResult> fetchLyricsWithTranslation(String trackId) async {
     final data = await _getJson('/api/song/lyric', {
       'id': trackId,
       'lv': '1',
       'kv': '1',
       'tv': '-1',
     });
-    final lrc = data['lrc'] as Map<String, dynamic>?;
-    final main = _strip('${lrc?['lyric'] ?? ''}');
-    if (main.isNotEmpty) return main;
-    final translation = data['tlyric'] as Map<String, dynamic>?;
-    return _strip('${translation?['lyric'] ?? ''}');
+    final lrc = data['lrc'];
+    final translation = data['tlyric'];
+    return parseLyrics(
+      lrc is Map ? '${lrc['lyric'] ?? ''}' : '',
+      translation is Map ? '${translation['lyric'] ?? ''}' : '',
+    );
   }
 
   /// Search the public NetEase catalogue. Search results can be selected and
@@ -189,17 +200,6 @@ class NeteaseClient {
       durationMs: ((raw['dt'] ?? raw['duration']) as num?)?.toInt() ?? 0,
     );
   }
-
-  String _strip(String value) => value
-      .split('\n')
-      .map((line) => line.replaceAll(RegExp(r'\[[0-9:.]+\]'), '').trim())
-      .where(
-        (line) =>
-            line.isNotEmpty &&
-            !line.startsWith('[by:') &&
-            !line.startsWith('[ti:'),
-      )
-      .join('\n');
 
   void close() => _client.close();
 }

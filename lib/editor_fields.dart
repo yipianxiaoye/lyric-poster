@@ -81,10 +81,12 @@ class LiveTextField extends StatefulWidget {
     required this.onChanged,
     this.maxLines = 1,
     this.hint,
+    this.validationMessage,
     super.key,
   });
   final String label, value;
   final String? hint;
+  final String? validationMessage;
   final int maxLines;
   final bool Function(String) onChanged;
   @override
@@ -129,7 +131,11 @@ class _LiveTextFieldState extends State<LiveTextField> {
     ),
     onChanged: (text) {
       final accepted = widget.onChanged(text);
-      setState(() => error = accepted ? null : '当前纸张放不下这些文字，请减小字号或增大纸张。');
+      setState(
+        () => error = accepted
+            ? null
+            : widget.validationMessage ?? '当前纸张放不下这些文字，请减小字号或增大纸张。',
+      );
     },
   );
 }

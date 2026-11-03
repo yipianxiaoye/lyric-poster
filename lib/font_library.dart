@@ -80,7 +80,11 @@ class FontLibrary extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> importFont(String name, Uint8List bytes) async {
+  Future<void> importFont(
+    String name,
+    Uint8List bytes, {
+    bool selectImported = true,
+  }) async {
     validateFont(bytes);
     final font = ImportedFont(
       id: 'f${DateTime.now().microsecondsSinceEpoch}',
@@ -97,7 +101,11 @@ class FontLibrary extends ChangeNotifier {
     await prefs.setStringList('importedFonts', [
       for (final item in fonts) jsonEncode({'id': item.id, 'name': item.name}),
     ]);
-    await select(font.family);
+    if (selectImported) {
+      await select(font.family);
+    } else if (!_disposed) {
+      notifyListeners();
+    }
   }
 
   Future<void> select(String family) async {

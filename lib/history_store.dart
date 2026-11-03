@@ -14,6 +14,8 @@ Map<String, dynamic> trackToMap(Track track) => {
   'album': track.album,
   'coverUrl': track.coverUrl,
   'lyrics': track.lyrics,
+  'translation': track.translation,
+  'translationFetched': track.translationFetched,
   'durationMs': track.durationMs,
 };
 
@@ -24,6 +26,8 @@ Track trackFromMap(Map<String, dynamic> data) => Track(
   album: data['album'] as String,
   coverUrl: data['coverUrl'] as String,
   lyrics: data['lyrics'] as String? ?? '',
+  translation: data['translation'] as String? ?? '',
+  translationFetched: data['translationFetched'] as bool? ?? false,
   durationMs: (data['durationMs'] as num?)?.toInt() ?? 0,
 );
 

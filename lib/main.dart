@@ -140,6 +140,13 @@ class PosterController extends ChangeNotifier {
       showBottomWatermark = true,
       showTopDecoration = true;
   double titleSize = 30, lyricSize = 15, overlay = .46;
+  bool showTranslation = true;
+  double translationSize = 12;
+  String translationFontFamily = defaultFontFamily;
+  String? translationError;
+  final _lyricLoads = <Track, Future<void>>{};
+  final _lyricEditRevisions = Expando<int>();
+  bool get lyricsLoading => _lyricLoads.containsKey(selected);
   Uint8List? backgroundImage;
   String? backgroundImageName;
   Offset backgroundOffset = Offset.zero;
@@ -229,6 +236,9 @@ class PosterController extends ChangeNotifier {
           dimensions: dimensions,
           titleSize: titleSize,
           lyricSize: lyricSize,
+          showTranslation: showTranslation,
+          translationSize: translationSize,
+          translationFontFamily: translationFontFamily,
           background: background,
           accent: accent,
           overlay: overlay,
@@ -258,6 +268,11 @@ class PosterController extends ChangeNotifier {
     final prefs = await SharedPreferences.getInstance();
     if (_disposed) return;
     themeId = prefs.getString('themeId') ?? themeId;
+    showTranslation = prefs.getBool('showTranslation') ?? showTranslation;
+    translationSize = (prefs.getDouble('translationSize') ?? translationSize)
+        .clamp(4, 96);
+    translationFontFamily =
+        prefs.getString('translationFontFamily') ?? translationFontFamily;
     dimensions = prefs.getString('defaultDimensions') ?? dimensions;
     maxLinesPerPage = (prefs.getInt('maxLinesPerPage') ?? maxLinesPerPage)
         .clamp(8, 40);
@@ -317,6 +332,9 @@ class PosterController extends ChangeNotifier {
     'dimensions': dimensions,
     'titleSize': titleSize,
     'lyricSize': lyricSize,
+    'showTranslation': showTranslation,
+    'translationSize': translationSize,
+    'translationFontFamily': translationFontFamily,
     'topWatermark': topWatermark,
     'bottomWatermark': bottomWatermark,
     'showTopWatermark': showTopWatermark,
@@ -443,6 +461,13 @@ class PosterController extends ChangeNotifier {
       final restoredDimensions = data['dimensions'] as String;
       final restoredTitleSize = (data['titleSize'] as num).toDouble();
       final restoredLyricSize = (data['lyricSize'] as num).toDouble();
+      final savedTranslationFont =
+          data['translationFontFamily'] as String? ?? defaultFontFamily;
+      final restoredTranslationFont =
+          savedTranslationFont == defaultFontFamily ||
+              fonts.fonts.any((font) => font.family == savedTranslationFont)
+          ? savedTranslationFont
+          : defaultFontFamily;
       final restoredMaxLines =
           (data['maxLinesPerPage'] as int?) ?? defaultMaxLinesPerPage;
       final restoredBackground = Color(data['background'] as int);
@@ -474,6 +499,10 @@ class PosterController extends ChangeNotifier {
       dimensions = restoredDimensions;
       titleSize = restoredTitleSize;
       lyricSize = restoredLyricSize;
+      showTranslation = data['showTranslation'] as bool? ?? true;
+      translationSize = (data['translationSize'] as num?)?.toDouble() ?? 12;
+      translationFontFamily = restoredTranslationFont;
+      translationError = null;
       maxLinesPerPage = restoredMaxLines.clamp(8, 40);
       topWatermark = restoredTopWatermark;
       bottomWatermark = restoredBottomWatermark;
@@ -498,7 +527,11 @@ class PosterController extends ChangeNotifier {
       fonts.selectedFamily = restoredFont;
       lyricPage = restoredPage.clamp(0, lyricPageCount - 1);
       draftDirty = false;
-      historyError = family == restoredFont ? null : '原字体不可用，已使用默认中文字体。';
+      historyError =
+          family == restoredFont &&
+              savedTranslationFont == restoredTranslationFont
+          ? null
+          : '原字体不可用，已使用默认中文字体。';
       currentTab = 1;
       notifyListeners();
     } catch (_) {
@@ -532,6 +565,7 @@ class PosterController extends ChangeNotifier {
     if (value is String) await prefs.setString(key, value);
     if (value is int) await prefs.setInt(key, value);
     if (value is bool) await prefs.setBool(key, value);
+    if (value is double) await prefs.setDouble(key, value);
   }
 
   Future<void> importPlaylist(String input) async {
@@ -616,11 +650,63 @@ class PosterController extends ChangeNotifier {
     activeDraftId = _trackDraftIds[track];
     lyricPage = 0;
     _designChanged();
-    if (!fetchLyrics || track.lyrics.isNotEmpty || track.id.isEmpty) return;
+    translationError = null;
+    if (!fetchLyrics || track.translationFetched || track.id.isEmpty) return;
+    await loadTrackLyrics(track);
+  }
+
+  Future<void> loadTrackLyrics(Track track) async {
+    if (track.id.isEmpty) return;
+    if (_lyricLoads[track] case final pending?) return pending;
+    final load = _loadTrackLyrics(track);
+    _lyricLoads[track] = load;
+    notifyListeners();
     try {
-      track.lyrics = await client.fetchLyrics(track.id);
-      if (!_disposed && identical(selected, track)) _designChanged();
-    } catch (_) {}
+      await load;
+    } finally {
+      _lyricLoads.remove(track);
+      if (!_disposed) notifyListeners();
+    }
+  }
+
+  Future<void> _loadTrackLyrics(Track track) async {
+    final revision = _lyricEditRevisions[track] ?? 0;
+    try {
+      final result = await client.fetchLyricsWithTranslation(track.id);
+      if (_disposed) return;
+      if ((_lyricEditRevisions[track] ?? 0) != revision) return;
+      String normalized(String value) =>
+          value.replaceAll('\r\n', '\n').replaceAll('\r', '\n').trim();
+      if (track.lyrics.trim().isEmpty) {
+        track.lyrics = result.lyrics;
+      } else if (normalized(track.lyrics) != normalized(result.lyrics)) {
+        if (identical(selected, track)) {
+          translationError = '当前原文已修改，无法自动匹配网易云译文。请按原文逐行手动填写译文。';
+        }
+        return;
+      }
+      final original = track.lyrics
+          .replaceAll('\r\n', '\n')
+          .replaceAll('\r', '\n');
+      final leadingLines = '\n'
+          .allMatches(
+            original.substring(0, original.length - original.trimLeft().length),
+          )
+          .length;
+      track.translation = result.translation.isEmpty
+          ? ''
+          : '${'\n' * leadingLines}${result.translation}';
+      track.translationFetched = true;
+      if (identical(selected, track)) {
+        translationError = null;
+        lyricPage = lyricPage.clamp(0, lyricPageCount - 1);
+        _designChanged();
+      }
+    } catch (_) {
+      if (!_disposed && identical(selected, track)) {
+        translationError = '暂时无法获取歌词和译文，请检查网络后重试。';
+      }
+    }
   }
 
   Future<void> addManualTrack() async {
@@ -656,22 +742,50 @@ class PosterController extends ChangeNotifier {
     }
   }
 
-  bool updateSelected({String? title, String? artist, String? lyrics}) {
+  bool updateSelected({
+    String? title,
+    String? artist,
+    String? lyrics,
+    String? translation,
+  }) {
     final track = selected;
     if (track == null) return false;
+    if (translation != null &&
+        translation.split('\n').length >
+            (lyrics ?? track.lyrics).split('\n').length) {
+      return false;
+    }
     final previousTitle = track.title;
     final previousArtist = track.artist;
     final previousLyrics = track.lyrics;
+    final previousTranslation = track.translation;
+    final previousFetched = track.translationFetched;
     if (title != null) track.title = title;
     if (artist != null) track.artist = artist;
-    if (lyrics != null) track.lyrics = lyrics;
+    if (lyrics != null) {
+      track.lyrics = lyrics;
+      if (lyrics != previousLyrics) {
+        track.translation = '';
+        track.translationFetched = false;
+        translationError = null;
+      }
+    }
+    if (translation != null) {
+      track.translation = translation;
+      track.translationFetched = true;
+    }
     try {
       document;
     } catch (_) {
       track.title = previousTitle;
       track.artist = previousArtist;
       track.lyrics = previousLyrics;
+      track.translation = previousTranslation;
+      track.translationFetched = previousFetched;
       return false;
+    }
+    if (lyrics != null || translation != null) {
+      _lyricEditRevisions[track] = (_lyricEditRevisions[track] ?? 0) + 1;
     }
     if (lyricPage >= lyricPageCount) lyricPage = lyricPageCount - 1;
     _designChanged();
@@ -728,6 +842,56 @@ class PosterController extends ChangeNotifier {
       return false;
     }
     lyricPage = lyricPage.clamp(0, lyricPageCount - 1);
+    _designChanged();
+    return true;
+  }
+
+  bool setShowTranslation(bool value) {
+    final previous = showTranslation;
+    showTranslation = value;
+    try {
+      document;
+    } catch (_) {
+      showTranslation = previous;
+      return false;
+    }
+    lyricPage = lyricPage.clamp(0, lyricPageCount - 1);
+    unawaited(_save('showTranslation', value));
+    _designChanged();
+    return true;
+  }
+
+  bool setTranslationSize(double value) {
+    if (!value.isFinite || value < 4 || value > 96) return false;
+    final previous = translationSize;
+    translationSize = value;
+    try {
+      document;
+    } catch (_) {
+      translationSize = previous;
+      return false;
+    }
+    lyricPage = lyricPage.clamp(0, lyricPageCount - 1);
+    unawaited(_save('translationSize', value));
+    _designChanged();
+    return true;
+  }
+
+  bool setTranslationFont(String family) {
+    if (family != defaultFontFamily &&
+        !fonts.fonts.any((font) => font.family == family)) {
+      return false;
+    }
+    final previous = translationFontFamily;
+    translationFontFamily = family;
+    try {
+      document;
+    } catch (_) {
+      translationFontFamily = previous;
+      return false;
+    }
+    lyricPage = lyricPage.clamp(0, lyricPageCount - 1);
+    unawaited(_save('translationFontFamily', family));
     _designChanged();
     return true;
   }
@@ -999,15 +1163,6 @@ class _PosterWorkspaceState extends State<PosterWorkspace> {
                   ),
               ],
             ),
-            actions: [
-              if (controller.selected != null)
-                FilledButton.icon(
-                  onPressed: () => controller.setTab(2),
-                  icon: const Icon(Icons.ios_share, size: 18),
-                  label: const Text('导出海报'),
-                ),
-              const SizedBox(width: 16),
-            ],
           ),
           body: wide
               ? Row(
@@ -1211,54 +1366,65 @@ class _PosterWorkspaceState extends State<PosterWorkspace> {
     ),
   );
 
-  Widget buildTrackList(
-    List<Track> items, {
-    bool searchResult = false,
-  }) => ListView.separated(
-    itemCount: items.length,
-    separatorBuilder: (_, _) => const SizedBox(height: 4),
-    itemBuilder: (context, index) {
-      final track = items[index];
-      final active = identical(track, controller.selected);
-      return ListTile(
-        dense: true,
-        selected: active,
-        selectedTileColor: Theme.of(
-          context,
-        ).colorScheme.primary.withValues(alpha: .18),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 1),
-        leading: cover(track.coverUrl, 36),
-        title: Text(
-          track.title,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w400),
-        ),
-        subtitle: Text(
-          track.artist,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: const TextStyle(fontSize: 11, color: Colors.white54),
-        ),
-        trailing: searchResult
-            ? IconButton(
-                tooltip: '添加到歌单',
-                icon: const Icon(Icons.add_circle_outline, size: 19),
-                onPressed: () => controller.addSearchResult(track),
-              )
-            : null,
-        onTap: () {
-          if (searchResult) {
-            controller.addSearchResult(track);
-          } else {
-            controller.selectTrack(track);
-            controller.setTab(1);
-          }
+  Widget buildTrackList(List<Track> items, {bool searchResult = false}) =>
+      ListView.separated(
+        itemCount: items.length,
+        separatorBuilder: (_, _) => const SizedBox(height: 4),
+        itemBuilder: (context, index) {
+          final track = items[index];
+          final active = identical(track, controller.selected);
+          return Material(
+            color: Colors.transparent,
+            borderRadius: BorderRadius.circular(12),
+            clipBehavior: Clip.antiAlias,
+            child: ListTile(
+              dense: true,
+              selected: active,
+              selectedTileColor: Theme.of(
+                context,
+              ).colorScheme.primary.withValues(alpha: .18),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: 8,
+                vertical: 1,
+              ),
+              leading: cover(track.coverUrl, 36),
+              title: Text(
+                track.title,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w400,
+                ),
+              ),
+              subtitle: Text(
+                track.artist,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(fontSize: 11, color: Colors.white54),
+              ),
+              trailing: searchResult
+                  ? IconButton(
+                      tooltip: '添加到歌单',
+                      icon: const Icon(Icons.add_circle_outline, size: 19),
+                      onPressed: () => controller.addSearchResult(track),
+                    )
+                  : null,
+              onTap: () {
+                if (searchResult) {
+                  controller.addSearchResult(track);
+                } else {
+                  controller.selectTrack(track);
+                  controller.setTab(1);
+                }
+              },
+            ),
+          );
         },
       );
-    },
-  );
 
   Widget buildMain(BuildContext context) {
     if (controller.currentTab == 0) return buildImport(context);
@@ -1870,6 +2036,102 @@ class _PosterWorkspaceState extends State<PosterWorkspace> {
           maxLines: 12,
           onChanged: (text) => controller.updateSelected(lyrics: text),
         ),
+        const SizedBox(height: 12),
+        const Text(
+          '修改原文会清空已有译文，避免逐行对应错位。',
+          style: TextStyle(fontSize: 11, color: Colors.white54),
+        ),
+        const Divider(height: 28),
+        SwitchListTile(
+          key: const ValueKey('show-translation'),
+          contentPadding: EdgeInsets.zero,
+          title: const Text('同时显示与导出译文'),
+          subtitle: const Text('译文排列在对应原文下方，自动分页'),
+          value: controller.showTranslation,
+          onChanged: (value) {
+            if (!controller.setShowTranslation(value)) {
+              toast(context, '当前纸张放不下此字号，请先减小译文字号。');
+            }
+          },
+        ),
+        if (controller.showTranslation) ...[
+          if (controller.lyricsLoading)
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 8),
+              child: Text('正在获取歌词与译文…'),
+            ),
+          if (controller.translationError case final error?)
+            Text(
+              error,
+              style: TextStyle(color: Theme.of(context).colorScheme.error),
+            ),
+          if (!controller.lyricsLoading &&
+              track.translation.trim().isEmpty) ...[
+            Text(
+              track.translationFetched
+                  ? '网易云暂未提供译文，可在下方手动填写。'
+                  : '可获取网易云已有译文，也可手动填写。',
+              style: const TextStyle(fontSize: 12, color: Colors.white60),
+            ),
+            if (track.id.isNotEmpty)
+              TextButton.icon(
+                key: const ValueKey('fetch-translation'),
+                onPressed: () => controller.loadTrackLyrics(track),
+                icon: const Icon(Icons.translate, size: 18),
+                label: const Text('获取网易云译文'),
+              ),
+          ],
+          const SizedBox(height: 12),
+          const Text('译文字体'),
+          const SizedBox(height: 8),
+          DropdownButtonFormField<String>(
+            key: ValueKey(
+              'translation-font-${controller.translationFontFamily}',
+            ),
+            initialValue: controller.translationFontFamily,
+            isExpanded: true,
+            items: [
+              const DropdownMenuItem(
+                value: defaultFontFamily,
+                child: Text('思源黑体（默认）'),
+              ),
+              for (final font in controller.fonts.fonts)
+                DropdownMenuItem(
+                  value: font.family,
+                  child: Text(font.name, overflow: TextOverflow.ellipsis),
+                ),
+            ],
+            onChanged: (value) {
+              if (value != null && !controller.setTranslationFont(value)) {
+                toast(context, '当前纸张放不下此字体，请减小译文字号。');
+              }
+            },
+          ),
+          const SizedBox(height: 8),
+          OutlinedButton.icon(
+            key: const ValueKey('import-translation-font'),
+            onPressed: () => importFont(forTranslation: true),
+            icon: const Icon(Icons.font_download_outlined),
+            label: const Text('导入译文字体'),
+          ),
+          const SizedBox(height: 12),
+          PointSizeField(
+            key: const ValueKey('translation-size-input'),
+            label: '译文字号',
+            value: controller.translationSize,
+            max: 96,
+            onChanged: controller.setTranslationSize,
+          ),
+          LiveTextField(
+            key: const ValueKey('edit-song-translation'),
+            label: '逐行译文',
+            hint: '每行对应一行原文，无译文的行请留空',
+            value: track.translation,
+            maxLines: 12,
+            validationMessage: '译文行数不能多于原文；每行对应一行原文，无译文的行请留空。',
+            onChanged: (text) => controller.updateSelected(translation: text),
+          ),
+        ],
       ],
     ],
   );
@@ -2313,16 +2575,32 @@ class _PosterWorkspaceState extends State<PosterWorkspace> {
     ],
   );
 
-  Future<void> importFont() async {
+  Future<void> importFont({bool forTranslation = false}) async {
     try {
       final file = await FilePicker.pickFile(
         type: FileType.custom,
         allowedExtensions: ['ttf', 'otf'],
-        dialogTitle: '导入海报字体',
+        dialogTitle: forTranslation ? '导入译文字体' : '导入海报字体',
       );
       if (file == null) return;
-      await controller.fonts.importFont(file.name, await file.readAsBytes());
-      if (mounted) toast(context, '已导入字体：${controller.fonts.selectedName}');
+      await controller.fonts.importFont(
+        file.name,
+        await file.readAsBytes(),
+        selectImported: !forTranslation,
+      );
+      if (forTranslation &&
+          !controller.setTranslationFont(controller.fonts.fonts.last.family)) {
+        if (mounted) toast(context, '字体已导入；当前纸张放不下此字体，请减小译文字号后重新选择。');
+        return;
+      }
+      if (mounted) {
+        toast(
+          context,
+          forTranslation
+              ? '已导入并选用译文字体'
+              : '已导入字体：${controller.fonts.selectedName}',
+        );
+      }
     } catch (error) {
       if (mounted) {
         toast(
@@ -2351,6 +2629,25 @@ class _PosterWorkspaceState extends State<PosterWorkspace> {
               style: TextStyle(color: Colors.white60),
             ),
             const SizedBox(height: 22),
+            if (controller.selected != null) ...[
+              SwitchListTile(
+                key: const ValueKey('export-translation'),
+                contentPadding: EdgeInsets.zero,
+                title: const Text('同时导出译文'),
+                subtitle: Text(
+                  controller.selected!.translation.trim().isEmpty
+                      ? '暂无译文，可在设计页的“文字与字体”中获取或填写。'
+                      : '使用设计页中设置的译文字体和字号。',
+                ),
+                value: controller.showTranslation,
+                onChanged: (value) {
+                  if (!controller.setShowTranslation(value)) {
+                    toast(context, '当前纸张放不下此字号，请先减小译文字号。');
+                  }
+                },
+              ),
+              const SizedBox(height: 14),
+            ],
             Card(
               child: Padding(
                 padding: const EdgeInsets.all(22),
@@ -2439,13 +2736,6 @@ class _PosterWorkspaceState extends State<PosterWorkspace> {
               style: TextStyle(color: Colors.white60),
             ),
             const SizedBox(height: 22),
-            if (widget.updates != null) ...[
-              UpdatePanel(
-                controller: widget.updates!,
-                beforeInstall: saveDraftBeforeUpdate,
-              ),
-              const SizedBox(height: 14),
-            ],
             Card(
               child: Padding(
                 padding: const EdgeInsets.all(22),

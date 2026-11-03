@@ -23,6 +23,9 @@ class PosterDocument {
     this.showPageNumbers = true,
     this.useAlbumCover = false,
     this.fontFamily = defaultFontFamily,
+    this.showTranslation = false,
+    this.translationFontFamily = defaultFontFamily,
+    this.translationSize = 14,
     this.maxLinesPerPage = 24,
     this.topWatermark,
     this.bottomWatermark = '词笺 · LYRIC POSTER',
@@ -62,6 +65,14 @@ class PosterDocument {
       fontSize: lyricSize,
       height: 1.55,
     );
+    translationStyle = TextStyle(
+      inherit: false,
+      fontFamily: translationFontFamily,
+      fontFamilyFallback: chineseFontFallback,
+      color: foreground.withValues(alpha: .7),
+      fontSize: translationSize,
+      height: 1.45,
+    );
     titleTop = (size.width * .16).clamp(36, size.height * .18);
     // Limit exceptionally long headings, reserving room for the lyrics.
     titleHeight = measure(
@@ -76,18 +87,41 @@ class PosterDocument {
     if (lyricHeight < lyricSize * 1.55) {
       throw StateError('标题和歌手信息过长，请缩短标题或减小标题字号。');
     }
-    lyrics = track.lyrics
-        .replaceAll('\r\n', '\n')
-        .replaceAll('\r', '\n')
-        .trim();
-    pages = paginate(
-      lyrics.isEmpty ? '把喜欢的句子\n留在这一页' : lyrics,
-      style: lyricStyle,
-      width: textWidth,
-      firstPageHeight: lyricHeight,
-      height: size.height - continuationTop - 85,
-      maxLines: maxLinesPerPage,
-    );
+    final source = track.lyrics.replaceAll('\r\n', '\n').replaceAll('\r', '\n');
+    lyrics = source.trim();
+    hasTranslation =
+        showTranslation &&
+        lyrics.isNotEmpty &&
+        track.translation.trim().isNotEmpty;
+    if (hasTranslation) {
+      // The stored translation is aligned before trimming the original. Skip
+      // precisely the same leading empty lines to keep every pair together.
+      final removedPrefix = source.substring(
+        0,
+        source.length - source.trimLeft().length,
+      );
+      final leadingLines = '\n'.allMatches(removedPrefix).length;
+      final translatedLines = track.translation
+          .replaceAll('\r\n', '\n')
+          .replaceAll('\r', '\n')
+          .split('\n')
+          .skip(leadingLines)
+          .toList();
+      _bilingualPages = _paginateBilingual(translatedLines);
+      pages = List.unmodifiable([
+        for (final runs in _bilingualPages!)
+          runs.where((run) => run.original).map((run) => run.text).join(),
+      ]);
+    } else {
+      pages = paginate(
+        lyrics.isEmpty ? '把喜欢的句子\n留在这一页' : lyrics,
+        style: lyricStyle,
+        width: textWidth,
+        firstPageHeight: lyricHeight,
+        height: size.height - continuationTop - 85,
+        maxLines: maxLinesPerPage,
+      );
+    }
   }
 
   final String title, artist, album, coverUrl, layout;
@@ -100,6 +134,9 @@ class PosterDocument {
   final List<PosterSticker> stickers;
   final bool showPageNumbers, useAlbumCover;
   final String fontFamily;
+  final bool showTranslation;
+  final String translationFontFamily;
+  final double translationSize;
   final int maxLinesPerPage;
 
   /// Null retains the album-based default; an empty string hides the text.
@@ -128,10 +165,141 @@ class PosterDocument {
       size.height - lyricTopForPage(page) - 85;
   late final String lyrics;
   late final List<String> pages;
+  late final bool hasTranslation;
+  List<List<_LyricRun>>? _bilingualPages;
   late final double horizontalMargin, textWidth;
   late final double titleTop, titleHeight, artistTop, artistHeight;
   late final double lyricTop, lyricHeight;
-  late final TextStyle titleStyle, artistStyle, lyricStyle;
+  late final TextStyle titleStyle, artistStyle, lyricStyle, translationStyle;
+
+  /// Used by both preview and export. A translation-only continuation may have
+  /// an empty original entry in [pages], without repeating or losing any text.
+  TextSpan pageTextSpan(int page) => hasTranslation
+      ? _spanForRuns(_bilingualPages![page])
+      : TextSpan(text: pages[page].trimRight(), style: lyricStyle);
+
+  double textHeightForPage(int page) => hasTranslation
+      ? _measureRuns(_bilingualPages![page])
+      : measure(pages[page].trimRight(), lyricStyle, textWidth);
+
+  TextSpan _spanForRuns(List<_LyricRun> runs) {
+    var end = runs.length;
+    while (end > 0 && runs[end - 1].text.trimRight().isEmpty) {
+      end--;
+    }
+    return TextSpan(
+      style: lyricStyle,
+      children: [
+        for (var index = 0; index < end; index++)
+          TextSpan(
+            text: index == end - 1
+                ? runs[index].text.trimRight()
+                : runs[index].text,
+            style: runs[index].translated ? translationStyle : lyricStyle,
+          ),
+      ],
+    );
+  }
+
+  double _measureRuns(List<_LyricRun> runs) {
+    final painter = TextPainter(
+      text: _spanForRuns(runs),
+      textDirection: TextDirection.ltr,
+      textAlign: textAlign,
+      textScaler: TextScaler.noScaling,
+      textHeightBehavior: const TextHeightBehavior(
+        applyHeightToFirstAscent: false,
+      ),
+    )..layout(maxWidth: textWidth);
+    final height = painter.height;
+    painter.dispose();
+    return height;
+  }
+
+  List<List<_LyricRun>> _paginateBilingual(List<String> translatedLines) {
+    final result = <List<_LyricRun>>[];
+    var current = <_LyricRun>[];
+    var lineCount = 0;
+    double available() => lyricHeightForPage(result.length) - 1;
+    bool fits(List<_LyricRun> runs) => _measureRuns(runs) <= available();
+    void finishPage() {
+      result.add(List.unmodifiable(current));
+      current = [];
+      lineCount = 0;
+    }
+
+    final lines = lyrics.split('\n');
+    for (var index = 0; index < lines.length; index++) {
+      final original = lines[index];
+      final translated = index < translatedLines.length
+          ? translatedLines[index]
+          : '';
+      final newline = index < lines.length - 1 ? '\n' : '';
+      var remaining = <_LyricRun>[
+        _LyricRun(original, original: true),
+        if (translated.trim().isNotEmpty) ...[
+          const _LyricRun('\n'),
+          _LyricRun(translated, translated: true),
+        ],
+        if (newline.isNotEmpty) _LyricRun(newline, original: true),
+      ];
+      if (current.isNotEmpty &&
+          (lineCount >= maxLinesPerPage || !fits([...current, ...remaining]))) {
+        finishPage();
+      }
+      while (!fits([...current, ...remaining])) {
+        // Only split a pair if the pair cannot fit by itself. Prefixes retain
+        // their source/style identity, including Unicode and original breaks.
+        final bounds = <int>[0];
+        var offset = 0;
+        for (final rune in remaining.map((run) => run.text).join().runes) {
+          offset += rune > 0xFFFF ? 2 : 1;
+          bounds.add(offset);
+        }
+        var low = 1, high = bounds.length - 1, best = 0;
+        while (low <= high) {
+          final middle = (low + high) ~/ 2;
+          final prefix = _splitRuns(remaining, bounds[middle]).$1;
+          if (fits([...current, ...prefix])) {
+            best = bounds[middle];
+            low = middle + 1;
+          } else {
+            high = middle - 1;
+          }
+        }
+        if (best == 0) {
+          throw StateError('当前画布放不下歌词或译文，请减小字号或增大画布。');
+        }
+        final (prefix, rest) = _splitRuns(remaining, best);
+        current.addAll(prefix);
+        finishPage();
+        remaining = rest;
+      }
+      current.addAll(remaining);
+      lineCount++;
+    }
+    if (current.isNotEmpty) finishPage();
+    return List.unmodifiable(result);
+  }
+
+  static (List<_LyricRun>, List<_LyricRun>) _splitRuns(
+    List<_LyricRun> runs,
+    int offset,
+  ) {
+    final prefix = <_LyricRun>[];
+    final rest = <_LyricRun>[];
+    for (final run in runs) {
+      if (offset >= run.text.length) {
+        prefix.add(run);
+        offset -= run.text.length;
+      } else {
+        if (offset > 0) prefix.add(run.withText(run.text.substring(0, offset)));
+        rest.add(run.withText(run.text.substring(offset)));
+        offset = 0;
+      }
+    }
+    return (prefix, rest);
+  }
 
   TextAlign get textAlign =>
       layout == '左对齐' ? TextAlign.left : TextAlign.center;
@@ -390,13 +558,24 @@ class PosterPage extends StatelessWidget {
                   alignment: doc.layout == '左对齐'
                       ? Alignment.centerLeft
                       : Alignment.center,
-                  child: Text(
-                    doc.pages[page].trimRight(),
-                    key: const ValueKey('poster-lyrics'),
-                    textAlign: doc.textAlign,
-                    style: doc.lyricStyle,
-                    textScaler: TextScaler.noScaling,
-                  ),
+                  child: doc.hasTranslation
+                      ? Text.rich(
+                          doc.pageTextSpan(page),
+                          key: const ValueKey('poster-lyrics'),
+                          textAlign: doc.textAlign,
+                          style: doc.lyricStyle,
+                          textScaler: TextScaler.noScaling,
+                          textHeightBehavior: const TextHeightBehavior(
+                            applyHeightToFirstAscent: false,
+                          ),
+                        )
+                      : Text(
+                          doc.pages[page].trimRight(),
+                          key: const ValueKey('poster-lyrics'),
+                          textAlign: doc.textAlign,
+                          style: doc.lyricStyle,
+                          textScaler: TextScaler.noScaling,
+                        ),
                 ),
               ),
             ),
@@ -495,6 +674,16 @@ class PosterPage extends StatelessWidget {
       ),
     ),
   );
+}
+
+class _LyricRun {
+  const _LyricRun(this.text, {this.original = false, this.translated = false});
+
+  final String text;
+  final bool original, translated;
+
+  _LyricRun withText(String value) =>
+      _LyricRun(value, original: original, translated: translated);
 }
 
 enum PosterElement {
