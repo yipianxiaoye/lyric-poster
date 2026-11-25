@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
@@ -16,6 +17,7 @@ class PosterDocument {
     required this.background,
     required this.accent,
     required this.overlay,
+    this.pageMargins,
     this.backgroundImage,
     this.backgroundOffset = Offset.zero,
     this.backgroundScale = 1,
@@ -37,8 +39,29 @@ class PosterDocument {
        album = track.album,
        coverUrl = track.coverUrl,
        size = paperSize(dimensions) {
-    horizontalMargin = size.width * (layout == '左对齐' ? .12 : .1);
-    textWidth = size.width - horizontalMargin * 2;
+    final defaults = defaultPageMargins(size, layout);
+    resolvedPageMargins = pageMargins ?? defaults;
+    final margins = resolvedPageMargins;
+    _hasCustomPageMargins = margins != defaults;
+    if (!margins.isNonNegative ||
+        !margins.horizontal.isFinite ||
+        !margins.vertical.isFinite) {
+      throw ArgumentError.value(margins, 'pageMargins', '页边距必须为非负有限值');
+    }
+    textWidth = size.width - margins.horizontal;
+    final source = track.lyrics.replaceAll('\r\n', '\n').replaceAll('\r', '\n');
+    lyrics = source.trim();
+    hasTranslation =
+        showTranslation &&
+        lyrics.isNotEmpty &&
+        track.translation.trim().isNotEmpty;
+    final minWidth = math.max(
+      36.0,
+      hasTranslation ? math.max(lyricSize, translationSize) : lyricSize,
+    );
+    if (_hasCustomPageMargins && textWidth < minWidth) {
+      throw StateError('左右页边距过大，当前页面放不下歌词。');
+    }
     titleStyle = TextStyle(
       inherit: false,
       fontFamily: fontFamily,
@@ -73,7 +96,14 @@ class PosterDocument {
       fontSize: translationSize,
       height: 1.45,
     );
-    titleTop = (size.width * .16).clamp(36, size.height * .18);
+    final originalWatermarkTop = size.width * .075;
+    _watermarkTop = math.max(
+      0,
+      originalWatermarkTop + (margins.top - defaults.top),
+    );
+    titleTop =
+        (size.width * .16).clamp(36, size.height * .18) +
+        (_watermarkTop - originalWatermarkTop);
     // Limit exceptionally long headings, reserving room for the lyrics.
     titleHeight = measure(
       title,
@@ -83,16 +113,16 @@ class PosterDocument {
     artistTop = titleTop + titleHeight + 10;
     artistHeight = measure(artist, artistStyle, textWidth).clamp(20.8, 41.6);
     lyricTop = artistTop + artistHeight + 28;
-    lyricHeight = size.height - lyricTop - 85;
+    _footerBottom = math.max(0, 36 + margins.bottom - defaults.bottom);
+    // Keep room for page numbering and the watermark even when hidden so that
+    // toggling them does not repaginate the text or invalidate a margin.
+    _lyricBottom = _hasCustomPageMargins
+        ? math.max(margins.bottom, _footerBottom + _maxFooterHeight + 8)
+        : margins.bottom;
+    lyricHeight = lyricHeightForPage(0);
     if (lyricHeight < lyricSize * 1.55) {
       throw StateError('标题和歌手信息过长，请缩短标题或减小标题字号。');
     }
-    final source = track.lyrics.replaceAll('\r\n', '\n').replaceAll('\r', '\n');
-    lyrics = source.trim();
-    hasTranslation =
-        showTranslation &&
-        lyrics.isNotEmpty &&
-        track.translation.trim().isNotEmpty;
     if (hasTranslation) {
       // The stored translation is aligned before trimming the original. Skip
       // precisely the same leading empty lines to keep every pair together.
@@ -118,7 +148,7 @@ class PosterDocument {
         style: lyricStyle,
         width: textWidth,
         firstPageHeight: lyricHeight,
-        height: size.height - continuationTop - 85,
+        height: lyricHeightForPage(1),
         maxLines: maxLinesPerPage,
       );
     }
@@ -128,6 +158,12 @@ class PosterDocument {
   final Size size;
   final Color background, accent;
   final double overlay;
+
+  /// The four user-selected margins in points. Null uses the paper defaults.
+  final EdgeInsets? pageMargins;
+  late final EdgeInsets resolvedPageMargins;
+  late final bool _hasCustomPageMargins;
+  static const _maxFooterHeight = 24.0;
   final Uint8List? backgroundImage;
   final Offset backgroundOffset;
   final double backgroundScale;
@@ -159,15 +195,17 @@ class PosterDocument {
     return contrast >= 3 ? accent : Color.lerp(accent, foreground, .7)!;
   }
 
-  double get continuationTop => (size.width * .1).clamp(30, 65);
+  double get continuationTop => resolvedPageMargins.top;
+  double get horizontalMargin => resolvedPageMargins.left;
   double lyricTopForPage(int page) => page == 0 ? lyricTop : continuationTop;
   double lyricHeightForPage(int page) =>
-      size.height - lyricTopForPage(page) - 85;
+      size.height - lyricTopForPage(page) - _lyricBottom;
   late final String lyrics;
   late final List<String> pages;
   late final bool hasTranslation;
   List<List<_LyricRun>>? _bilingualPages;
-  late final double horizontalMargin, textWidth;
+  late final double textWidth;
+  late final double _watermarkTop, _footerBottom, _lyricBottom;
   late final double titleTop, titleHeight, artistTop, artistHeight;
   late final double lyricTop, lyricHeight;
   late final TextStyle titleStyle, artistStyle, lyricStyle, translationStyle;
@@ -304,6 +342,16 @@ class PosterDocument {
   TextAlign get textAlign =>
       layout == '左对齐' ? TextAlign.left : TextAlign.center;
 
+  static EdgeInsets defaultPageMargins(Size size, String layout) {
+    final horizontal = size.width * (layout == '左对齐' ? .12 : .1);
+    return EdgeInsets.fromLTRB(
+      horizontal,
+      (size.width * .1).clamp(30, 65),
+      horizontal,
+      85,
+    );
+  }
+
   static Size paperSize(String dimensions) => switch (dimensions) {
     'A5 竖版' => const Size(419.53, 595.28),
     'A5 横版' => const Size(595.28, 419.53),
@@ -405,6 +453,15 @@ class PosterPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final doc = document;
+    final margins = doc.resolvedPageMargins;
+    final printTextScaler = doc._hasCustomPageMargins
+        ? TextScaler.noScaling
+        : null;
+    final pageNumber = Text(
+      '${page + 1} / ${doc.pages.length}',
+      style: TextStyle(color: doc.readableAccent, fontSize: 12),
+      textScaler: printTextScaler,
+    );
     return SizedBox.fromSize(
       size: doc.size,
       child: DefaultTextStyle(
@@ -471,9 +528,9 @@ class PosterPage extends StatelessWidget {
                         doc.resolvedTopWatermark.trim().isNotEmpty) ||
                     doc.showTopDecoration))
               Positioned(
-                top: doc.size.width * .075,
-                left: doc.horizontalMargin,
-                right: doc.horizontalMargin,
+                top: doc._watermarkTop,
+                left: margins.left,
+                right: margins.right,
                 child: GestureDetector(
                   behavior: HitTestBehavior.opaque,
                   onTap: onElementTap == null
@@ -489,6 +546,7 @@ class PosterPage extends StatelessWidget {
                             key: const ValueKey('poster-top-watermark'),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
+                            textScaler: printTextScaler,
                             style: TextStyle(
                               color: doc.readableAccent.withValues(alpha: .8),
                               fontSize: 12,
@@ -512,7 +570,7 @@ class PosterPage extends StatelessWidget {
             if (page == 0)
               Positioned(
                 top: doc.titleTop,
-                left: doc.horizontalMargin,
+                left: margins.left,
                 width: doc.textWidth,
                 child: GestureDetector(
                   onTap: onElementTap == null
@@ -524,13 +582,14 @@ class PosterPage extends StatelessWidget {
                     style: doc.titleStyle,
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
+                    textScaler: printTextScaler,
                   ),
                 ),
               ),
             if (page == 0)
               Positioned(
                 top: doc.artistTop,
-                left: doc.horizontalMargin,
+                left: margins.left,
                 width: doc.textWidth,
                 child: GestureDetector(
                   onTap: onElementTap == null
@@ -542,12 +601,13 @@ class PosterPage extends StatelessWidget {
                     style: doc.artistStyle,
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
+                    textScaler: printTextScaler,
                   ),
                 ),
               ),
             Positioned(
               top: doc.lyricTopForPage(page),
-              left: doc.horizontalMargin,
+              left: margins.left,
               width: doc.textWidth,
               height: doc.lyricHeightForPage(page),
               child: GestureDetector(
@@ -582,45 +642,61 @@ class PosterPage extends StatelessWidget {
             for (var index = 0; index < doc.stickers.length; index++)
               _sticker(doc.stickers[index], index),
             Positioned(
-              bottom: 36,
-              left: doc.horizontalMargin,
-              right: doc.horizontalMargin,
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Expanded(
-                    child:
-                        doc.showBottomWatermark &&
-                            doc.bottomWatermark.trim().isNotEmpty
-                        ? GestureDetector(
-                            behavior: HitTestBehavior.opaque,
-                            onTap: onElementTap == null
-                                ? null
-                                : () => onElementTap!(
-                                    PosterElement.bottomWatermark,
-                                  ),
-                            child: Text(
-                              doc.bottomWatermark,
-                              key: const ValueKey('poster-bottom-watermark'),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: TextStyle(
-                                color: doc.foreground.withValues(alpha: .55),
-                                fontSize: 11,
+              bottom: doc._footerBottom,
+              left: margins.left,
+              right: margins.right,
+              child: ConstrainedBox(
+                constraints: BoxConstraints(
+                  maxHeight: doc._hasCustomPageMargins
+                      ? PosterDocument._maxFooterHeight
+                      : double.infinity,
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Expanded(
+                      child:
+                          doc.showBottomWatermark &&
+                              doc.bottomWatermark.trim().isNotEmpty
+                          ? GestureDetector(
+                              behavior: HitTestBehavior.opaque,
+                              onTap: onElementTap == null
+                                  ? null
+                                  : () => onElementTap!(
+                                      PosterElement.bottomWatermark,
+                                    ),
+                              child: Text(
+                                doc.bottomWatermark,
+                                key: const ValueKey('poster-bottom-watermark'),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                textScaler: printTextScaler,
+                                style: TextStyle(
+                                  color: doc.foreground.withValues(alpha: .55),
+                                  fontSize: 11,
+                                ),
                               ),
-                            ),
-                          )
-                        : const SizedBox.shrink(),
-                  ),
-                  if (doc.showPageNumbers) const SizedBox(width: 12),
-                  if (doc.showPageNumbers)
-                    Text(
-                      '${page + 1} / ${doc.pages.length}',
-                      style: TextStyle(color: doc.readableAccent, fontSize: 12),
-                    )
-                  else
-                    const SizedBox.shrink(),
-                ],
+                            )
+                          : const SizedBox.shrink(),
+                    ),
+                    if (doc.showPageNumbers) const SizedBox(width: 12),
+                    if (doc.showPageNumbers)
+                      if (!doc._hasCustomPageMargins)
+                        pageNumber
+                      else
+                        ConstrainedBox(
+                          constraints: BoxConstraints(
+                            maxWidth: doc.textWidth - 12,
+                          ),
+                          child: FittedBox(
+                            fit: BoxFit.scaleDown,
+                            child: pageNumber,
+                          ),
+                        )
+                    else
+                      const SizedBox.shrink(),
+                  ],
+                ),
               ),
             ),
           ],

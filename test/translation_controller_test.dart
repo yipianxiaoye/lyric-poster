@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 
+import 'package:flutter/material.dart' show EdgeInsets;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
@@ -77,6 +78,29 @@ void main() {
     expect(edited.lyrics, 'Edited\nGoodbye');
     expect(edited.translation, isEmpty);
     expect(controller.translationError, contains('当前原文已修改'));
+  });
+
+  test('自定义页边距放不下新译文时保留原文，调宽后可重新获取', () async {
+    final controller = PosterController(
+      client: NeteaseClient(client: MockClient((_) async => response())),
+    );
+    addTearDown(controller.dispose);
+    final track = sample(lyrics: 'Hello\nGoodbye');
+    await controller.selectTrack(track, fetchLyrics: false);
+    expect(controller.setTranslationSize(50), isTrue);
+    expect(
+      controller.setPageMargins(const EdgeInsets.fromLTRB(260, 45, 295, 85)),
+      isTrue,
+    );
+    await controller.loadTrackLyrics(track);
+    expect(track.lyrics, 'Hello\nGoodbye');
+    expect(track.translation, isEmpty);
+    expect(track.translationFetched, isFalse);
+    expect(controller.translationError, contains('页边距'));
+    expect(controller.document!.pages, isNotEmpty);
+    expect(controller.setPageMargins(null), isTrue);
+    await controller.loadTrackLyrics(track);
+    expect(controller.document!.hasTranslation, isTrue);
   });
 
   test('下载期间手动填写的译文不会被异步响应覆盖', () async {

@@ -131,6 +131,14 @@ class PosterController extends ChangeNotifier {
   int currentTab = 0, lyricPage = 0;
   int maxLinesPerPage = defaultMaxLinesPerPage;
   String layout = '居中', dimensions = 'A4 竖版';
+  EdgeInsets? _pageMargins;
+  bool get hasCustomPageMargins => _pageMargins != null;
+  EdgeInsets get pageMargins =>
+      _pageMargins ??
+      PosterDocument.defaultPageMargins(
+        PosterDocument.paperSize(dimensions),
+        layout,
+      );
   Color background = Colors.white, accent = const Color(0xFF7354AA);
   Color defaultBackground = Colors.white;
   bool useAlbumCover = false;
@@ -236,6 +244,7 @@ class PosterController extends ChangeNotifier {
           dimensions: dimensions,
           titleSize: titleSize,
           lyricSize: lyricSize,
+          pageMargins: _pageMargins,
           showTranslation: showTranslation,
           translationSize: translationSize,
           translationFontFamily: translationFontFamily,
@@ -330,6 +339,8 @@ class PosterController extends ChangeNotifier {
     'track': trackToMap(selected!),
     'layout': layout,
     'dimensions': dimensions,
+    if (_pageMargins case final margins?)
+      'pageMargins': [margins.left, margins.top, margins.right, margins.bottom],
     'titleSize': titleSize,
     'lyricSize': lyricSize,
     'showTranslation': showTranslation,
@@ -461,6 +472,18 @@ class PosterController extends ChangeNotifier {
       final restoredDimensions = data['dimensions'] as String;
       final restoredTitleSize = (data['titleSize'] as num).toDouble();
       final restoredLyricSize = (data['lyricSize'] as num).toDouble();
+      final savedMargins = data['pageMargins'] as List?;
+      final restoredMargins = savedMargins == null
+          ? null
+          : EdgeInsets.fromLTRB(
+              (savedMargins[0] as num).toDouble(),
+              (savedMargins[1] as num).toDouble(),
+              (savedMargins[2] as num).toDouble(),
+              (savedMargins[3] as num).toDouble(),
+            );
+      final restoredShowTranslation = data['showTranslation'] as bool? ?? true;
+      final restoredTranslationSize =
+          (data['translationSize'] as num?)?.toDouble() ?? 12;
       final savedTranslationFont =
           data['translationFontFamily'] as String? ?? defaultFontFamily;
       final restoredTranslationFont =
@@ -486,6 +509,27 @@ class PosterController extends ChangeNotifier {
       final restoredTopWatermark = data['topWatermark'] as String?;
       final restoredBottomWatermark =
           data['bottomWatermark'] as String? ?? '词笺 · LYRIC POSTER';
+      final restoredShowBottomWatermark =
+          data['showBottomWatermark'] as bool? ?? true;
+      final restoredPageCount = PosterDocument(
+        track: track,
+        layout: restoredLayout,
+        dimensions: restoredDimensions,
+        titleSize: restoredTitleSize,
+        lyricSize: restoredLyricSize,
+        showTranslation: restoredShowTranslation,
+        translationSize: restoredTranslationSize,
+        translationFontFamily: restoredTranslationFont,
+        fontFamily: restoredFont,
+        pageMargins: restoredMargins,
+        maxLinesPerPage: restoredMaxLines.clamp(8, 40),
+        background: restoredBackground,
+        accent: restoredAccent,
+        overlay: restoredOverlay,
+        bottomWatermark: restoredBottomWatermark,
+        showBottomWatermark: restoredShowBottomWatermark,
+        showPageNumbers: restoredNumbers,
+      ).pages.length;
       selected = track;
       tracks.removeWhere(
         (item) =>
@@ -497,17 +541,18 @@ class PosterController extends ChangeNotifier {
       tracks.insert(0, track);
       layout = restoredLayout;
       dimensions = restoredDimensions;
+      _pageMargins = restoredMargins;
       titleSize = restoredTitleSize;
       lyricSize = restoredLyricSize;
-      showTranslation = data['showTranslation'] as bool? ?? true;
-      translationSize = (data['translationSize'] as num?)?.toDouble() ?? 12;
+      showTranslation = restoredShowTranslation;
+      translationSize = restoredTranslationSize;
       translationFontFamily = restoredTranslationFont;
       translationError = null;
       maxLinesPerPage = restoredMaxLines.clamp(8, 40);
       topWatermark = restoredTopWatermark;
       bottomWatermark = restoredBottomWatermark;
       showTopWatermark = data['showTopWatermark'] as bool? ?? true;
-      showBottomWatermark = data['showBottomWatermark'] as bool? ?? true;
+      showBottomWatermark = restoredShowBottomWatermark;
       showTopDecoration = data['showTopDecoration'] as bool? ?? true;
       background = restoredBackground;
       accent = restoredAccent;
@@ -525,7 +570,7 @@ class PosterController extends ChangeNotifier {
       activeDraftId = entry.id;
       _trackDraftIds[track] = entry.id;
       fonts.selectedFamily = restoredFont;
-      lyricPage = restoredPage.clamp(0, lyricPageCount - 1);
+      lyricPage = restoredPage.clamp(0, restoredPageCount - 1);
       draftDirty = false;
       historyError =
           family == restoredFont &&
@@ -677,6 +722,8 @@ class PosterController extends ChangeNotifier {
       if ((_lyricEditRevisions[track] ?? 0) != revision) return;
       String normalized(String value) =>
           value.replaceAll('\r\n', '\n').replaceAll('\r', '\n').trim();
+      final previousLyrics = track.lyrics;
+      final previousTranslation = track.translation;
       if (track.lyrics.trim().isEmpty) {
         track.lyrics = result.lyrics;
       } else if (normalized(track.lyrics) != normalized(result.lyrics)) {
@@ -696,12 +743,20 @@ class PosterController extends ChangeNotifier {
       track.translation = result.translation.isEmpty
           ? ''
           : '${'\n' * leadingLines}${result.translation}';
-      track.translationFetched = true;
-      if (identical(selected, track)) {
+      final isSelected = identical(selected, track);
+      if (isSelected) {
+        try {
+          lyricPage = lyricPage.clamp(0, lyricPageCount - 1);
+        } on StateError {
+          track.lyrics = previousLyrics;
+          track.translation = previousTranslation;
+          translationError = '当前版式放不下歌词或译文，请减小页边距或字号后重试。';
+          return;
+        }
         translationError = null;
-        lyricPage = lyricPage.clamp(0, lyricPageCount - 1);
-        _designChanged();
       }
+      track.translationFetched = true;
+      if (isSelected) _designChanged();
     } catch (_) {
       if (!_disposed && identical(selected, track)) {
         translationError = '暂时无法获取歌词和译文，请检查网络后重试。';
@@ -812,6 +867,24 @@ class PosterController extends ChangeNotifier {
       return false;
     }
     lyricPage = lyricPage.clamp(0, lyricPageCount - 1);
+    _designChanged();
+    return true;
+  }
+
+  bool setPageMargins(EdgeInsets? value) {
+    if (value == _pageMargins) return true;
+    if (selected == null && value != null) return false;
+    final previous = _pageMargins;
+    _pageMargins = value;
+    try {
+      lyricPage = lyricPage.clamp(0, lyricPageCount - 1);
+    } on StateError {
+      _pageMargins = previous;
+      return false;
+    } on ArgumentError {
+      _pageMargins = previous;
+      return false;
+    }
     _designChanged();
     return true;
   }
@@ -1096,6 +1169,7 @@ class _PosterWorkspaceState extends State<PosterWorkspace> {
   bool exporting = false;
   String editorSection = '排版与纸张';
   bool toolsVisible = true;
+  int marginFieldRevision = 0;
   static const editorSections = ['排版与纸张', '文字与字体', '背景与颜色', '图片与贴纸', '上下水印'];
 
   @override
@@ -1857,7 +1931,7 @@ class _PosterWorkspaceState extends State<PosterWorkspace> {
 
   void changePaper(String paper, {bool saveAsDefault = false}) {
     if (!controller.setDimensions(paper, saveAsDefault: saveAsDefault)) {
-      toast(context, '当前纸张放不下此字号，请先减小标题或歌词字号。');
+      toast(context, '当前纸张空间不足，请调小页边距或字号。');
     }
   }
 
@@ -2325,6 +2399,10 @@ class _PosterWorkspaceState extends State<PosterWorkspace> {
             ),
         ],
       ),
+      if (controller.selected != null) ...[
+        const SizedBox(height: 16),
+        buildPageMarginTools(),
+      ],
       const SizedBox(height: 16),
       const Text(
         '打印字号（1 pt = 1/72 英寸）',
@@ -2392,6 +2470,108 @@ class _PosterWorkspaceState extends State<PosterWorkspace> {
       ),
     ],
   );
+
+  Widget buildPageMarginTools() {
+    const pointsPerMillimeter = 72 / 25.4;
+    final margins = controller.pageMargins;
+    Widget field(
+      String side,
+      String label,
+      double value,
+      EdgeInsets Function(EdgeInsets, double) update,
+    ) => Expanded(
+      child: PrintValueField(
+        key: ValueKey('page-margin-$side'),
+        label: label,
+        unit: 'mm',
+        value: value / pointsPerMillimeter,
+        min: 0,
+        fitError: '剩余空间不足',
+        onChanged: (millimeters) => controller.setPageMargins(
+          update(controller.pageMargins, millimeters * pointsPerMillimeter),
+        ),
+      ),
+    );
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Wrap(
+          spacing: 8,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          children: [
+            const Text('页边距（毫米）'),
+            TextButton(
+              key: const ValueKey('reset-page-margins'),
+              onPressed: () {
+                if (controller.setPageMargins(null)) {
+                  setState(() => marginFieldRevision++);
+                } else {
+                  toast(context, '默认页边距下空间不足，请先减小字号。');
+                }
+              },
+              child: const Text('恢复默认'),
+            ),
+          ],
+        ),
+        const Padding(
+          padding: EdgeInsets.only(bottom: 8),
+          child: Text(
+            '底部为页码和水印保留空间。',
+            style: TextStyle(fontSize: 11, color: Colors.white54),
+          ),
+        ),
+        KeyedSubtree(
+          key: ValueKey((
+            controller.selected,
+            controller.dimensions,
+            controller.layout,
+            marginFieldRevision,
+          )),
+          child: Column(
+            children: [
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  field(
+                    'left',
+                    '左边距',
+                    margins.left,
+                    (insets, value) => insets.copyWith(left: value),
+                  ),
+                  const SizedBox(width: 8),
+                  field(
+                    'right',
+                    '右边距',
+                    margins.right,
+                    (insets, value) => insets.copyWith(right: value),
+                  ),
+                ],
+              ),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  field(
+                    'top',
+                    '上边距',
+                    margins.top,
+                    (insets, value) => insets.copyWith(top: value),
+                  ),
+                  const SizedBox(width: 8),
+                  field(
+                    'bottom',
+                    '下边距',
+                    margins.bottom,
+                    (insets, value) => insets.copyWith(bottom: value),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
 
   Widget buildImageTools() => Column(
     crossAxisAlignment: CrossAxisAlignment.start,
